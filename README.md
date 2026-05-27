@@ -7,7 +7,7 @@ The 4th game in **Dot Arcade**: a 1v1 dueling card game designed from the ground
 **For**: [Dot Pad](https://www.dotincorp.com) — the world's first multi-line braille graphic display
 **Built with**: Web Bluetooth / Web Serial, Web Audio, Web Speech API + (Azure Neural TTS optional later)
 
-> **Status**: v0.1 — Bot duel works end-to-end. Quick / Friend / Tutorial modes scheduled for v0.2+.
+> **Status**: v0.2 — Bot duel + 19 pixel-art assets integrated, including tactile rendering of card images on Dot Pad. Multiplayer modes scheduled for v0.3.
 
 ---
 
@@ -124,12 +124,23 @@ Then enable GitHub Pages: Settings → Pages → Source `main` / root.
 - [x] SFX (Web Audio synthesis)
 - [x] Splash + lobby + arena UI
 
-### v0.2 (next)
+### v0.2 (shipped)
+- [x] All 19 pixel-art assets integrated (splash, arena, duelists, 12 cards, victory, defeat, matchmaking)
+- [x] Duelist sprites swap into arena (fox 🦊 left / bear 🐻 right)
+- [x] Card hand shows actual pixel thumbnails
+- [x] Game over shows victory/defeat illustration
+- [x] **Dot Pad tactile image rendering** — `imageToDotPadCells()` converts PNG to 60×40 pin binary
+- [x] My focused card auto-renders as tactile thumbnail in bottom zone (30×3 cells = 60×12 pins)
+- [x] Opponent's committed card renders as tactile thumbnail in top zone after clash reveal
+- [x] F2 (or "Card Desc" key) pushes full 30×10 card image to Dot Pad for 4 seconds
+- [x] Game over pushes victory/defeat art to Dot Pad as full tactile image
+
+### v0.3 (next)
 - [ ] Tutorial mode (3 steps)
 - [ ] Settings modal (rate, voice, planning-time)
-- [ ] Replace ASCII duelists with `duelist-fox.png` / `duelist-bear.png` + arena bg
+- [ ] Multiplayer: Firebase realtime DB + quick/friend modes
 
-### v0.3 (multiplayer)
+### v0.4 (multiplayer)
 - [ ] Firebase Realtime Database integration
 - [ ] Quick Duel — auto matchmaking (10s queue, bot fallback)
 - [ ] Friend Duel — 4-digit room code

@@ -331,16 +331,25 @@
   }
   .hand-card.committed { opacity: 0.4; pointer-events: none; }
   .hand-card-icon {
-    width: 28px; height: 28px;
+    width: 36px; height: 36px;
     background: var(--bg-card);
     border-radius: 4px;
     display: flex; align-items: center; justify-content: center;
-    font-weight: 900; font-size: 14px;
+    font-weight: 900; font-size: 16px;
     flex-shrink: 0;
+    overflow: hidden;
   }
-  .hand-card-icon.spear { color: var(--steel); }
-  .hand-card-icon.shield { color: var(--gold); }
-  .hand-card-icon.special { color: var(--purple); }
+  .hand-card-icon.img { padding: 0; background: var(--bg); }
+  .hand-card-icon.img img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+  }
+  .hand-card-icon.spear { color: var(--steel); border: 1px solid rgba(160,168,184,0.4); }
+  .hand-card-icon.shield { color: var(--gold); border: 1px solid rgba(212,160,23,0.4); }
+  .hand-card-icon.special { color: var(--purple); border: 1px solid rgba(142,68,173,0.4); }
   .hand-card-text { flex: 1; min-width: 0; }
   .hand-card-name { font-size: 12px; font-weight: 700; color: var(--fg); margin-bottom: 1px; letter-spacing: 0.02em; }
   .hand-card-stat { font-size: 10px; color: var(--fg-dim); }
@@ -390,17 +399,23 @@
     z-index: 2;
   }
   .duelist {
-    width: 120px; height: 180px;
-    background: var(--bg-card);
-    border: 1.5px solid var(--line);
-    border-radius: var(--radius);
-    display: flex; align-items: center; justify-content: center;
+    width: 140px; height: 200px;
+    background: transparent;
+    border: none;
+    display: flex; align-items: flex-end; justify-content: center;
     font-size: 60px;
     color: var(--accent);
     transition: transform 0.4s;
     position: relative;
+    filter: drop-shadow(0 8px 12px rgba(0,0,0,0.5));
   }
-  .duelist img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; border-radius: var(--radius); }
+  .duelist img {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+  }
   .duelist-name {
     position: absolute; bottom: -22px;
     font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
@@ -482,6 +497,21 @@
   .overlay-card .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 
   /* Game over overlay */
+  .game-over .result-art {
+    width: 100%; max-width: 320px;
+    aspect-ratio: 4/3;
+    margin: 0 auto 12px;
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .game-over .result-art img {
+    width: 100%; height: 100%; object-fit: cover;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
   .game-over .result-title {
     font-size: 48px; font-weight: 900;
     margin: 0 0 4px;
@@ -597,6 +627,7 @@
 
 <div class="overlay" id="overlay-game-over" role="dialog" aria-labelledby="result-title">
   <div class="overlay-card game-over">
+    <div id="result-art" class="result-art"></div>
     <h2 id="result-title" class="result-title">VICTORY</h2>
     <div id="result-stats" class="result-stats"></div>
     <p id="result-msg"></p>
@@ -788,6 +819,105 @@ const SFX = {
 };
 
 // ============================================================
+// IMAGE PRELOAD + DOT PAD CONVERSION
+// ============================================================
+const IMG = {};      // cache of <img> elements by key
+const IMG_OK = {};   // boolean availability per key
+function preloadImg(key, src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => { IMG[key] = img; IMG_OK[key] = true; resolve(true); };
+    img.onerror = () => { IMG_OK[key] = false; console.warn('[img] failed:', src); resolve(false); };
+    img.src = src;
+  });
+}
+function preloadAllImages() {
+  return Promise.all([
+    preloadImg('splash', 'assets/splash-hero.png'),
+    preloadImg('arena', 'assets/arena-bg.png'),
+    preloadImg('fox', 'assets/duelist-fox.png'),
+    preloadImg('bear', 'assets/duelist-bear.png'),
+    preloadImg('victory', 'assets/victory.png'),
+    preloadImg('defeat', 'assets/defeat.png'),
+    preloadImg('matchmaking', 'assets/matchmaking-bg.png'),
+    ...CARD_ID_LIST.map(id => preloadImg(`card_${id}`, `assets/cards/${id}.png`)),
+  ]);
+}
+
+// Convert an image to Dot Pad binary cells. Each braille cell is 2 pin cols ×
+// 4 pin rows = 8 dots. Total pin resolution = (cellsW × 2) × (cellsH × 4).
+// pinThreshold (0-255 luma) — pixels brighter than this become raised pins.
+// Returns { cells: Uint8Array(cellsW * cellsH), pinW, pinH }.
+function imageToDotPadCells(img, cellsW, cellsH, pinThreshold = 110) {
+  const pinW = cellsW * 2;
+  const pinH = cellsH * 4;
+  const cv = document.createElement('canvas');
+  cv.width = pinW; cv.height = pinH;
+  const ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, pinW, pinH);
+  // Fit image into canvas preserving aspect, center
+  const sa = img.width / img.height;
+  const da = pinW / pinH;
+  let dw, dh, dx, dy;
+  if (sa > da) {
+    dw = pinW; dh = Math.round(pinW / sa);
+    dx = 0; dy = Math.round((pinH - dh) / 2);
+  } else {
+    dh = pinH; dw = Math.round(pinH * sa);
+    dy = 0; dx = Math.round((pinW - dw) / 2);
+  }
+  ctx.drawImage(img, dx, dy, dw, dh);
+  const data = ctx.getImageData(0, 0, pinW, pinH).data;
+  const cells = new Uint8Array(cellsW * cellsH);
+  // bit map: pin (subCol, subRow) -> bit mask
+  // col 0: dot 1 (row0)=0x01, dot 2 (row1)=0x02, dot 3 (row2)=0x04, dot 7 (row3)=0x40
+  // col 1: dot 4 (row0)=0x08, dot 5 (row1)=0x10, dot 6 (row2)=0x20, dot 8 (row3)=0x80
+  const BIT = [
+    [0x01, 0x02, 0x04, 0x40], // col 0, rows 0-3
+    [0x08, 0x10, 0x20, 0x80], // col 1, rows 0-3
+  ];
+  for (let cy = 0; cy < cellsH; cy++) {
+    for (let cx = 0; cx < cellsW; cx++) {
+      let byte = 0;
+      for (let sc = 0; sc < 2; sc++) {
+        for (let sr = 0; sr < 4; sr++) {
+          const px = cx * 2 + sc;
+          const py = cy * 4 + sr;
+          const i = (py * pinW + px) * 4;
+          const luma = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+          if (luma > pinThreshold) byte |= BIT[sc][sr];
+        }
+      }
+      cells[cy * cellsW + cx] = byte;
+    }
+  }
+  return { cells, pinW, pinH };
+}
+// Place image cells into a target cells array at offset (ox, oy)
+function applyImageCells(targetCells, img, opts) {
+  const cellsW = opts.cellsW;
+  const cellsH = opts.cellsH;
+  const ox = opts.offsetX || 0;
+  const oy = opts.offsetY || 0;
+  const th = opts.threshold ?? 110;
+  const replace = opts.replace !== false; // default replace, else OR
+  const { cells } = imageToDotPadCells(img, cellsW, cellsH, th);
+  for (let cy = 0; cy < cellsH; cy++) {
+    for (let cx = 0; cx < cellsW; cx++) {
+      const tc = cx + ox;
+      const tr = cy + oy;
+      if (tc < 0 || tc >= DP_W || tr < 0 || tr >= DP_H) continue;
+      const v = cells[cy * cellsW + cx];
+      if (replace) targetCells[tr * DP_W + tc] = v;
+      else targetCells[tr * DP_W + tc] |= v;
+    }
+  }
+}
+
+// ============================================================
 // UTIL
 // ============================================================
 function $(id) { return document.getElementById(id); }
@@ -821,15 +951,12 @@ function render() {
 }
 
 function renderSplash() {
+  const heroHtml = IMG_OK.splash
+    ? `<img src="assets/splash-hero.png" alt="Two duelists facing off in a dungeon arena" decoding="async" />`
+    : `<div class="placeholder">⚔️<br/><strong style="color: var(--accent); font-size: 18px;">DotDuel</strong><br/><span style="font-size: 11px;">Loading hero image...</span></div>`;
   $('screen').innerHTML = `
     <section class="splash">
-      <div class="splash-hero-frame">
-        <div class="placeholder">
-          ⚔️<br/>
-          <strong style="color: var(--accent); font-size: 18px;">DotDuel</strong><br/>
-          <span style="font-size: 11px;">Place <code>assets/splash-hero.png</code> here</span>
-        </div>
-      </div>
+      <div class="splash-hero-frame">${heroHtml}</div>
       <h1 class="splash-title">DotDuel</h1>
       <p class="splash-sub">Tactile 1v1 Card Duel · Dot Pad + Voice</p>
       <button class="splash-start" id="btn-splash-start" type="button" aria-label="Enter lobby">▶ START</button>
@@ -1011,13 +1138,13 @@ function renderMatch() {
         <h3 class="panel-title">Your Hand</h3>
         <div class="hand-list" id="hand-list">${handHtml}</div>
       </div>
-      <div class="arena" role="region" aria-label="Duel arena">
+      <div class="arena" role="region" aria-label="Duel arena" style="${IMG_OK.arena ? `background-image: url('assets/arena-bg.png'), linear-gradient(180deg, rgba(0,0,0,0.5) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.4) 100%); background-size: cover, auto; background-position: center; image-rendering: pixelated;` : ''}">
         <div class="arena-ground">
-          <div class="duelist" id="duelist-me" aria-label="You — fox spearmaster">🦊
+          <div class="duelist" id="duelist-me" aria-label="You — fox spearmaster">${IMG_OK.fox ? `<img src="assets/duelist-fox.png" alt="" />` : '🦊'}
             <span class="duelist-name">YOU</span>
           </div>
           <div class="arena-vs">VS</div>
-          <div class="duelist" id="duelist-op" aria-label="Opponent — bear shieldwarden">🐻
+          <div class="duelist" id="duelist-op" aria-label="Opponent — bear shieldwarden">${IMG_OK.bear ? `<img src="assets/duelist-bear.png" alt="" />` : '🐻'}
             <span class="duelist-name">BOT</span>
           </div>
         </div>
@@ -1071,9 +1198,12 @@ function renderHand(m) {
     const committed = m.myCommit && idx === m.myFocus && m.phase !== 'PLANNING' ? 'committed' : '';
     const sym = c.cat === 'spear' ? '▲' : c.cat === 'shield' ? '■' : '●';
     const stat = c.cat === 'spear' ? `ATK ${c.atk}` : c.cat === 'shield' ? `DEF ${c.def}` : (c.eff || '').replace('_', ' ').toUpperCase();
+    const iconHtml = IMG_OK[`card_${cid}`]
+      ? `<div class="hand-card-icon ${c.cat} img"><img src="assets/cards/${cid}.png" alt="" /></div>`
+      : `<div class="hand-card-icon ${c.cat}">${sym}</div>`;
     return `
       <button class="hand-card ${focused} ${committed}" data-idx="${idx}" type="button" aria-label="${c.name}, ${stat}">
-        <div class="hand-card-icon ${c.cat}">${sym}</div>
+        ${iconHtml}
         <div class="hand-card-text">
           <div class="hand-card-name">${c.name}</div>
           <div class="hand-card-stat">${stat}</div>
@@ -1114,8 +1244,15 @@ function announceFocus() {
 }
 function announceCardFull() {
   const m = state.match; if (!m) return;
-  const c = CARDS[m.myHand[m.myFocus]];
+  const cid = m.myHand[m.myFocus];
+  const c = CARDS[cid];
   speak(`${c.name}. ${c.desc}`);
+  // Also push the full card pixel-art to the Dot Pad as a tactile image
+  // for ~4 seconds, so user can "feel" the card silhouette while listening.
+  if (state.dotpadConnected && IMG_OK[`card_${cid}`]) {
+    pushDotpadImage(`card_${cid}`, { duration: 4000, threshold: 110 });
+    toast('Card on Dot Pad (4s)', 1500);
+  }
 }
 function announceBriefing() {
   const m = state.match; if (!m) return;
@@ -1377,6 +1514,11 @@ function endMatch() {
   $('result-title').textContent = winner === 'win' ? 'VICTORY' : winner === 'lose' ? 'DEFEAT' : 'DRAW';
   $('result-stats').textContent = `HP ${m.myHp} vs ${m.opHp} · ${m.turn} turns`;
   $('result-msg').textContent = winner === 'win' ? 'You outdueled the bot.' : winner === 'lose' ? 'The bot got the better of you.' : 'A perfectly even match.';
+  // Result art (victory / defeat pixel illustration)
+  const artKey = winner === 'win' ? 'victory' : winner === 'lose' ? 'defeat' : 'arena';
+  $('result-art').innerHTML = IMG_OK[artKey] ? `<img src="assets/${artKey === 'arena' ? 'arena-bg' : artKey}.png" alt="" />` : '';
+  // Push art to Dot Pad as full tactile image (won't auto-revert, user can lobby out)
+  pushDotpadImage(artKey === 'arena' ? 'arena' : artKey, { fullPad: true });
   if (winner === 'win') SFX.win();
   else if (winner === 'lose') SFX.lose();
   else SFX.draw();
@@ -1386,20 +1528,61 @@ function endMatch() {
 
 // ============================================================
 // DOT PAD RENDERING — 3 zones (3/4/3 rows × 30 cols = 300 cells)
+// State flag: state.dpImageMode = { key, until } — when set, render that image
+// to the full Dot Pad until the timestamp; then auto-revert to zone mode.
 // ============================================================
 const DP_W = 30, DP_H = 10;
 function pushDotpad() {
-  if (!state.dotpadConnected || !window.DotPad || !state.match) return;
+  if (!state.dotpadConnected || !window.DotPad) return;
   try {
     const cells = new Uint8Array(DP_W * DP_H);
-    renderDpZones(cells);
+    // Full-pad image mode (F2 preview, game over, etc.)
+    if (state.dpImageMode && Date.now() < state.dpImageMode.until) {
+      const img = IMG[state.dpImageMode.key];
+      if (img && IMG_OK[state.dpImageMode.key]) {
+        applyImageCells(cells, img, {
+          cellsW: DP_W, cellsH: DP_H, offsetX: 0, offsetY: 0,
+          threshold: state.dpImageMode.threshold ?? 110,
+        });
+      }
+    } else if (state.match) {
+      state.dpImageMode = null;
+      renderDpZones(cells);
+    } else {
+      // Not in a match and no image mode — leave blank
+      state.dpImageMode = null;
+    }
     const hex = bytesToHex(cells);
     window.DotPad.sdk.displayGraphicData(hex);
-    // Text line: HP/turn
-    const m = state.match;
-    const text = `MY:${String(m.myHp).padStart(2,'0')} T:${String(m.turn).padStart(2,'0')} OP:${String(m.opHp).padStart(2,'0')}`;
-    try { window.DotPad.sdk.displayTextData(text); } catch(e){}
+    // Text line: HP/turn if in match
+    if (state.match) {
+      const m = state.match;
+      const text = `MY:${String(m.myHp).padStart(2,'0')} T:${String(m.turn).padStart(2,'0')} OP:${String(m.opHp).padStart(2,'0')}`;
+      try { window.DotPad.sdk.displayTextData(text); } catch(e){}
+    }
   } catch(e) { console.warn('[dotpad] render failed:', e); }
+}
+
+// Push an image to the FULL Dot Pad graphic area (30×10 cells = 60×40 pins).
+// opts.duration = ms (default 4000); fullPad: true persists until lobby return.
+function pushDotpadImage(key, opts = {}) {
+  if (!state.dotpadConnected || !window.DotPad || !IMG_OK[key]) return;
+  const duration = opts.fullPad ? 1e9 : (opts.duration ?? 4000);
+  state.dpImageMode = {
+    key,
+    until: Date.now() + duration,
+    threshold: opts.threshold ?? 110,
+  };
+  pushDotpad();
+  if (!opts.fullPad) {
+    // Auto-revert
+    setTimeout(() => {
+      if (state.dpImageMode && state.dpImageMode.key === key) {
+        state.dpImageMode = null;
+        pushDotpad();
+      }
+    }, duration + 50);
+  }
 }
 function bytesToHex(bytes) {
   let s = '';
@@ -1420,30 +1603,36 @@ function setCell(cells, c, r, v) {
   cells[r * DP_W + c] |= v & 0xFF;
 }
 function drawOpZone(cells, m) {
-  // 3 rows × 30 cols, centered rectangle frame
-  const rTop = 0, rBot = 2, cLeft = 8, cRight = 21;
-  // Top edge (dots 1+4)
+  // 3 rows × 30 cols (90 cells = 60×12 pins)
+  const cLeft = 8, cRight = 21;
+  const thumbW = cRight - cLeft + 1;          // 14 cells wide
+  if (m.opCommit && (m.phase === 'CLASH' || m.phase === 'OVER')) {
+    // Revealed — render opponent's card as a tactile thumbnail at top
+    const img = IMG[`card_${m.opCommit}`];
+    if (img && IMG_OK[`card_${m.opCommit}`]) {
+      applyImageCells(cells, img, {
+        cellsW: thumbW, cellsH: 3, offsetX: cLeft, offsetY: 0, threshold: 110,
+      });
+      return;
+    }
+  }
+  // Default: rectangle frame + category hint
+  const rTop = 0, rBot = 2;
   for (let c = cLeft; c <= cRight; c++) setCell(cells, c, rTop, 0x09);
-  // Bottom edge (dots 7+8)
   for (let c = cLeft; c <= cRight; c++) setCell(cells, c, rBot, 0xC0);
-  // Side edges (dots 1+2+3+7)
   for (let r = rTop; r <= rBot; r++) {
     setCell(cells, cLeft, r, 0x47);
     setCell(cells, cRight, r, 0xB8);
   }
-  // Category hint in center if revealed
-  if (m.opCommit && m.phase !== 'PLANNING' && m.phase !== 'WAIT') {
+  // Category hint when committed but pre-clash (WAIT phase)
+  if (m.opCommit && m.phase === 'WAIT') {
     const cat = CARDS[m.opCommit].cat;
-    // 4 cells wide centerline at row 1
     const midC = Math.floor((cLeft + cRight) / 2);
     if (cat === 'spear') {
-      // vertical line (dots 2+5 stacked) — represented as fills in middle cells
       for (let r = rTop; r <= rBot; r++) setCell(cells, midC, r, 0xFF);
     } else if (cat === 'shield') {
-      // horizontal line — fill row 1 middle
       for (let c = midC - 2; c <= midC + 2; c++) setCell(cells, c, 1, 0xFF);
     } else if (cat === 'special') {
-      // small blob at center
       for (let r = 0; r <= 2; r++) for (let c = midC - 1; c <= midC + 1; c++) setCell(cells, c, r, 0xFF);
     }
   }
@@ -1466,32 +1655,37 @@ function drawClashZone(cells, m) {
   }
 }
 function drawMyZone(cells, m) {
-  // Rows 7-9, my currently-focused card BIG symbol
+  // Rows 7-9, my currently-focused card — render as tactile thumbnail from PNG
   if (!m.myHand.length) return;
-  const card = CARDS[m.myHand[m.myFocus]];
-  const cat = card.cat;
-  // Frame
-  const rTop = 7, rBot = 9, cLeft = 8, cRight = 21;
-  for (let c = cLeft; c <= cRight; c++) {
-    setCell(cells, c, rTop, 0x09);
-    setCell(cells, c, rBot, 0xC0);
+  const cid = m.myHand[m.myFocus];
+  const cLeft = 8, cRight = 21;
+  const thumbW = cRight - cLeft + 1; // 14 cells
+  const img = IMG[`card_${cid}`];
+  if (img && IMG_OK[`card_${cid}`]) {
+    applyImageCells(cells, img, {
+      cellsW: thumbW, cellsH: 3, offsetX: cLeft, offsetY: 7, threshold: 110,
+    });
+    return;
   }
-  for (let r = rTop; r <= rBot; r++) {
+  // Fallback: symbol render (if image not loaded)
+  const card = CARDS[cid];
+  const cat = card.cat;
+  for (let c = cLeft; c <= cRight; c++) {
+    setCell(cells, c, 7, 0x09);
+    setCell(cells, c, 9, 0xC0);
+  }
+  for (let r = 7; r <= 9; r++) {
     setCell(cells, cLeft, r, 0x47);
     setCell(cells, cRight, r, 0xB8);
   }
-  // Symbol
   const midC = Math.floor((cLeft + cRight) / 2);
   if (cat === 'spear') {
-    // Triangle pointing up — fill cells in pyramid
     setCell(cells, midC, 7, 0xFF);
     setCell(cells, midC - 1, 8, 0xFF); setCell(cells, midC, 8, 0xFF); setCell(cells, midC + 1, 8, 0xFF);
     for (let c = midC - 2; c <= midC + 2; c++) setCell(cells, c, 9, 0xFF);
   } else if (cat === 'shield') {
-    // Filled square at center
     for (let r = 7; r <= 9; r++) for (let c = midC - 2; c <= midC + 2; c++) setCell(cells, c, r, 0xFF);
   } else {
-    // Special: circle-like blob (corners off)
     for (let r = 7; r <= 9; r++) for (let c = midC - 2; c <= midC + 2; c++) setCell(cells, c, r, 0xFF);
     setCell(cells, midC - 2, 7, 0); setCell(cells, midC + 2, 7, 0);
     setCell(cells, midC - 2, 9, 0); setCell(cells, midC + 2, 9, 0);
@@ -1640,8 +1834,15 @@ renderMatch = function() {
 // ============================================================
 // INIT
 // ============================================================
-function init() {
+async function init() {
   loadSettings();
+  // Preload pixel-art images (cards, characters, scenes) — fire-and-forget;
+  // UI renders fallback symbols/emoji while images load, then refreshes on completion.
+  preloadAllImages().then(() => {
+    console.log('[DotDuel] images preloaded:', Object.keys(IMG_OK).filter(k => IMG_OK[k]).length, '/', Object.keys(IMG_OK).length);
+    // Re-render current screen so any placeholders swap to actual images
+    render();
+  });
   // Header buttons
   $('btn-dotpad').addEventListener('click', openPopup);
   $('dpd-ble').addEventListener('click', connectBle);
