@@ -6,10 +6,11 @@
 <title>DotDuel — Tactile 1v1 Card Duel</title>
 <style>
   :root {
-    --bg:          #1a1208;
+    --bg:          #0a0806;
     --bg-card:     #2a1c10;
     --bg-soft:     #3a2a1c;
     --line:        #5a3a1c;
+    --bg-splash:   #000000;
     --fg:          #f5e9d4;
     --fg-soft:     #d4c4a8;
     --fg-dim:      #a89880;
@@ -128,75 +129,73 @@
   }
   @media (max-width: 540px) { main { padding-top: 118px; } }
 
-  /* ============ SPLASH (Absolum-inspired title screen) ============ */
+  /* ============ SPLASH — full black w/ logo image ============ */
+  body.on-splash {
+    background: var(--bg-splash) !important;
+  }
+  body.on-splash .lab-header {
+    background: rgba(0,0,0,0.9);
+    border-bottom-color: rgba(255,255,255,0.06);
+  }
   .splash {
     text-align: center;
-    padding: clamp(40px, 12vh, 120px) 20px clamp(40px, 8vh, 80px);
+    padding: clamp(60px, 14vh, 160px) 20px clamp(40px, 8vh, 80px);
     min-height: calc(100vh - 200px);
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
     position: relative;
+    background: var(--bg-splash);
+    margin: -130px -16px 0;
   }
-  .splash-title-big {
-    font-family: 'Trebuchet MS', system-ui, sans-serif;
-    font-size: clamp(72px, 14vw, 168px);
-    font-weight: 900;
-    letter-spacing: -0.02em;
-    color: var(--accent);
-    margin: 0;
-    line-height: 0.95;
-    text-shadow:
-      0 0 30px rgba(255,122,69,0.4),
-      0 4px 0 var(--accent-dark);
-    display: inline-flex;
-    align-items: center;
-    gap: 0;
+  @media (max-width: 540px) {
+    .splash { margin-top: -118px; }
   }
-  .splash-title-big .title-star {
-    display: inline-block;
-    color: var(--gold);
-    font-size: 0.95em;
-    transform: translateY(0.04em);
-    text-shadow: 0 0 24px rgba(212,160,23,0.6);
-    margin: 0 -0.08em;
+  .splash-logo {
+    width: clamp(280px, 70vw, 880px);
+    max-height: 50vh;
+    margin: 0 auto 36px;
+    object-fit: contain;
+    filter: drop-shadow(0 8px 28px rgba(192,57,43,0.35));
   }
-  .splash-divider {
-    width: clamp(180px, 28vw, 360px);
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--accent), transparent);
-    margin: 14px auto 20px;
-    box-shadow: 0 0 12px rgba(255,122,69,0.4);
-  }
-  .splash-sub-v2 {
-    font-size: clamp(11px, 1.6vw, 14px);
-    color: var(--fg-dim);
-    margin: 0 0 clamp(28px, 5vh, 56px);
-    font-weight: 500;
-    letter-spacing: 0.18em;
-    text-transform: uppercase;
+  .splash-logo-placeholder {
+    width: clamp(280px, 70vw, 880px);
+    height: clamp(160px, 28vh, 360px);
+    background: linear-gradient(180deg, rgba(192,57,43,0.08), transparent);
+    border: 1px dashed rgba(255,255,255,0.1);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.4);
+    font-size: 14px;
+    margin: 0 auto 36px;
   }
   .splash-start {
     padding: 16px 44px;
-    background: var(--accent); color: white;
-    border: none; border-radius: 999px;
-    font-size: 17px; font-weight: 800;
+    background: transparent; color: #f5e9d4;
+    border: 1.5px solid rgba(245,233,212,0.4);
+    border-radius: 4px;
+    font-size: 14px; font-weight: 600;
     cursor: pointer; font-family: inherit;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.32em;
     text-transform: uppercase;
-    box-shadow: 0 6px 18px rgba(255,122,69,0.45);
-    transition: transform 0.12s, box-shadow 0.12s;
-    animation: splashPress 2.4s ease-in-out infinite;
+    transition: all 0.18s;
+    animation: splashPress 2.2s ease-in-out infinite;
   }
-  .splash-start:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(255,122,69,0.55); animation: none; }
-  .splash-start:active { transform: translateY(0); }
+  .splash-start:hover {
+    border-color: #f5e9d4;
+    background: rgba(245,233,212,0.06);
+    animation: none;
+  }
+  .splash-start:active { transform: translateY(1px); }
   @keyframes splashPress {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.04); }
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
   }
   .splash-footer {
-    position: absolute; bottom: 16px; left: 0; right: 0;
-    color: var(--fg-faint); font-size: 10px;
-    letter-spacing: 0.08em;
+    position: absolute; bottom: 18px; left: 0; right: 0;
+    color: rgba(255,255,255,0.18);
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
   }
 
   /* ============ LOBBY ============ */
@@ -989,6 +988,8 @@ function announce(msg) {
 // ROUTER / RENDER
 // ============================================================
 function render() {
+  // Black-page mode only on splash
+  if (state.screen !== 'splash') document.body.classList.remove('on-splash');
   if (state.screen === 'splash') renderSplash();
   else if (state.screen === 'lobby') renderLobby();
   else if (state.screen === 'match') renderMatch();
@@ -996,16 +997,59 @@ function render() {
   updateDotpadStatus();
 }
 
+// Cache for the white-background-removed logo (data URL)
+let _logoDataUrl = null;
+async function getLogoWithTransparentBg() {
+  if (_logoDataUrl) return _logoDataUrl;
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const cv = document.createElement('canvas');
+        cv.width = img.width; cv.height = img.height;
+        const ctx = cv.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const data = ctx.getImageData(0, 0, cv.width, cv.height);
+        const px = data.data;
+        // Make any near-white pixel fully transparent (fuzz tolerance ~25)
+        for (let i = 0; i < px.length; i += 4) {
+          if (px[i] > 230 && px[i+1] > 230 && px[i+2] > 230) {
+            px[i+3] = 0;
+          }
+        }
+        ctx.putImageData(data, 0, 0);
+        _logoDataUrl = cv.toDataURL('image/png');
+        resolve(_logoDataUrl);
+      } catch(e) {
+        console.warn('[logo] alpha processing failed:', e);
+        resolve(img.src); // fallback to raw image
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = 'assets/title-logo.png';
+  });
+}
+
 function renderSplash() {
+  document.body.classList.add('on-splash');
   $('screen').innerHTML = `
     <section class="splash">
-      <h1 class="splash-title-big" aria-label="DotDuel">D<span class="title-star">✦</span>tDuel</h1>
-      <div class="splash-divider" aria-hidden="true"></div>
-      <p class="splash-sub-v2">Tactile · 1v1 · Dot Pad + Voice</p>
-      <button class="splash-start" id="btn-splash-start" type="button" aria-label="Press start to enter the lobby">▶ Press Start</button>
-      <div class="splash-footer" aria-hidden="true">© 2026 Dot Incorporation · v0.2 BETA</div>
+      <div class="splash-logo-placeholder" id="splash-logo-slot" aria-label="DotDuel">Loading…</div>
+      <button class="splash-start" id="btn-splash-start" type="button" aria-label="Press start to enter the lobby">Press Start</button>
+      <div class="splash-footer" aria-hidden="true">© 2026 Dot Incorporation · v0.4 BETA</div>
     </section>
   `;
+  // Swap the placeholder with the (alpha-processed) logo once ready
+  getLogoWithTransparentBg().then(dataUrl => {
+    const slot = document.getElementById('splash-logo-slot');
+    if (!slot) return;
+    if (dataUrl) {
+      slot.outerHTML = `<img class="splash-logo" src="${dataUrl}" alt="DotDuel" />`;
+    } else {
+      slot.textContent = 'DotDuel';
+    }
+  });
   $('btn-splash-start').addEventListener('click', () => {
     state.screen = 'lobby';
     SFX.commit();
