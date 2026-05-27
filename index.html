@@ -273,8 +273,8 @@
   }
   @media (max-width: 880px) {
     .match-screen { grid-template-columns: 1fr; }
+    .match-screen .arena-column { order: 1; }
     .match-screen .side-panel { order: 3; }
-    .match-screen .arena { order: 1; }
   }
 
   /* Stats row on top of arena */
@@ -517,13 +517,21 @@
     text-shadow: 0 1px 4px rgba(0,0,0,0.8);
   }
 
-  /* Action buttons — moved OUTSIDE the arena, below it */
+  /* Middle column wrapper — stacks arena + action row vertically so they
+     occupy a single grid cell (the 2nd column of .match-screen) */
+  .arena-column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  /* Action buttons — below the arena, inside the same column */
   .action-row {
     display: flex; gap: 10px; justify-content: center;
-    margin-top: 12px;
     flex-wrap: wrap;
     padding: 0 4px;
   }
+  .action-row .action-btn { flex: 0 0 auto; }
   .action-btn {
     background: var(--accent); color: white;
     border: none; border-radius: 999px;
@@ -1249,24 +1257,26 @@ function renderMatch() {
         <h3 class="panel-title">Your Hand</h3>
         <div class="hand-list" id="hand-list">${handHtml}</div>
       </div>
-      <div class="arena" role="region" aria-label="Duel arena" style="${IMG_OK.arena ? `background-image: url('assets/arena-bg.png'), linear-gradient(180deg, rgba(0,0,0,0.5) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.4) 100%); background-size: cover, auto; background-position: center; image-rendering: pixelated;` : ''}">
-        <div class="arena-clash" id="arena-clash">
-          <div class="arena-clash-text" id="clash-text">${m.phase === 'PLANNING' ? 'Choose your card' : ''}</div>
-          <div class="arena-clash-detail" id="clash-detail"></div>
-        </div>
-        <div class="arena-ground">
-          <div class="duelist" id="duelist-me" aria-label="You — fox spearmaster">${IMG_OK.fox ? `<img src="assets/duelist-fox.png" alt="" />` : '🦊'}
-            <span class="duelist-name">YOU</span>
+      <div class="arena-column">
+        <div class="arena" role="region" aria-label="Duel arena" style="${IMG_OK.arena ? `background-image: url('assets/arena-bg.png'), linear-gradient(180deg, rgba(0,0,0,0.5) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.4) 100%); background-size: cover, auto; background-position: center; image-rendering: pixelated;` : ''}">
+          <div class="arena-clash" id="arena-clash">
+            <div class="arena-clash-text" id="clash-text">${m.phase === 'PLANNING' ? 'Choose your card' : ''}</div>
+            <div class="arena-clash-detail" id="clash-detail"></div>
           </div>
-          <div class="arena-vs">VS</div>
-          <div class="duelist" id="duelist-op" aria-label="Opponent — bear shieldwarden">${IMG_OK.bear ? `<img src="assets/duelist-bear.png" alt="" />` : '🐻'}
-            <span class="duelist-name">BOT</span>
+          <div class="arena-ground">
+            <div class="duelist" id="duelist-me" aria-label="You — fox spearmaster">${IMG_OK.fox ? `<img src="assets/duelist-fox.png" alt="" />` : '🦊'}
+              <span class="duelist-name">YOU</span>
+            </div>
+            <div class="arena-vs">VS</div>
+            <div class="duelist" id="duelist-op" aria-label="Opponent — bear shieldwarden">${IMG_OK.bear ? `<img src="assets/duelist-bear.png" alt="" />` : '🐻'}
+              <span class="duelist-name">BOT</span>
+            </div>
           </div>
         </div>
-      </div>
-      <div class="action-row">
-        <button class="action-btn" id="btn-commit" type="button" aria-label="Commit selected card">▶ Commit (F3)</button>
-        <button class="action-btn secondary" id="btn-briefing" type="button" aria-label="Briefing">F1 Briefing</button>
+        <div class="action-row">
+          <button class="action-btn" id="btn-commit" type="button" aria-label="Commit selected card">▶ Commit (F3)</button>
+          <button class="action-btn secondary" id="btn-briefing" type="button" aria-label="Briefing">F1 Briefing</button>
+        </div>
       </div>
       <div class="side-panel">
         <h3 class="panel-title">Opponent Log</h3>
