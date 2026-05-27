@@ -128,53 +128,76 @@
   }
   @media (max-width: 540px) { main { padding-top: 118px; } }
 
-  /* ============ SPLASH ============ */
+  /* ============ SPLASH (Absolum-inspired title screen) ============ */
   .splash {
     text-align: center;
-    padding: 40px 20px 60px;
-  }
-  .splash-hero-frame {
-    width: 100%; max-width: 720px;
-    aspect-ratio: 4/3;
-    margin: 0 auto 24px;
-    border-radius: var(--radius-lg);
-    background: var(--bg-soft);
-    border: 2px solid var(--line);
-    overflow: hidden;
-    display: flex; align-items: center; justify-content: center;
+    padding: clamp(40px, 12vh, 120px) 20px clamp(40px, 8vh, 80px);
+    min-height: calc(100vh - 200px);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
     position: relative;
   }
-  .splash-hero-frame img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
-  .splash-hero-frame .placeholder {
-    color: var(--fg-faint); font-size: 14px; text-align: center;
-    padding: 20px;
-  }
-  .splash-title {
-    font-size: clamp(48px, 8vw, 88px); font-weight: 900;
+  .splash-title-big {
+    font-family: 'Trebuchet MS', system-ui, sans-serif;
+    font-size: clamp(72px, 14vw, 168px);
+    font-weight: 900;
     letter-spacing: -0.02em;
-    background: linear-gradient(180deg, var(--accent), var(--gold));
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    margin: 0 0 8px;
-    line-height: 1;
+    color: var(--accent);
+    margin: 0;
+    line-height: 0.95;
+    text-shadow:
+      0 0 30px rgba(255,122,69,0.4),
+      0 4px 0 var(--accent-dark);
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
   }
-  .splash-sub {
-    font-size: 16px; color: var(--fg-soft); margin: 0 0 36px;
-    font-weight: 500; letter-spacing: 0.04em;
+  .splash-title-big .title-star {
+    display: inline-block;
+    color: var(--gold);
+    font-size: 0.95em;
+    transform: translateY(0.04em);
+    text-shadow: 0 0 24px rgba(212,160,23,0.6);
+    margin: 0 -0.08em;
+  }
+  .splash-divider {
+    width: clamp(180px, 28vw, 360px);
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    margin: 14px auto 20px;
+    box-shadow: 0 0 12px rgba(255,122,69,0.4);
+  }
+  .splash-sub-v2 {
+    font-size: clamp(11px, 1.6vw, 14px);
+    color: var(--fg-dim);
+    margin: 0 0 clamp(28px, 5vh, 56px);
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
   }
   .splash-start {
-    padding: 16px 36px;
+    padding: 16px 44px;
     background: var(--accent); color: white;
     border: none; border-radius: 999px;
-    font-size: 18px; font-weight: 800;
+    font-size: 17px; font-weight: 800;
     cursor: pointer; font-family: inherit;
-    letter-spacing: 0.04em;
-    box-shadow: 0 4px 12px rgba(255,122,69,0.4);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    box-shadow: 0 6px 18px rgba(255,122,69,0.45);
     transition: transform 0.12s, box-shadow 0.12s;
+    animation: splashPress 2.4s ease-in-out infinite;
   }
-  .splash-start:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(255,122,69,0.5); }
+  .splash-start:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(255,122,69,0.55); animation: none; }
   .splash-start:active { transform: translateY(0); }
+  @keyframes splashPress {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.04); }
+  }
+  .splash-footer {
+    position: absolute; bottom: 16px; left: 0; right: 0;
+    color: var(--fg-faint); font-size: 10px;
+    letter-spacing: 0.08em;
+  }
 
   /* ============ LOBBY ============ */
   .lobby-title {
@@ -367,39 +390,45 @@
   .log-result { color: var(--fg-soft); font-size: 10px; margin-top: 2px; }
   .log-empty { color: var(--fg-faint); font-size: 11px; padding: 14px; text-align: center; }
 
-  /* Arena */
+  /* Arena — duelists pinned to the ground (bottom band of arena-bg.png) */
   .arena {
     background: var(--bg-soft);
     background-image:
-      radial-gradient(ellipse at center bottom, rgba(255,122,69,0.12) 0%, transparent 60%),
+      radial-gradient(ellipse at center 90%, rgba(255,122,69,0.12) 0%, transparent 60%),
       linear-gradient(180deg, rgba(0,0,0,0.4) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.3) 100%);
     border: 2px solid var(--line);
     border-radius: var(--radius-lg);
-    padding: 16px;
-    display: flex; flex-direction: column;
-    min-height: 360px;
+    padding: 0;
+    min-height: 380px;
+    aspect-ratio: 4/3;
     position: relative;
     overflow: hidden;
+    display: block;
+  }
+  @media (max-width: 880px) {
+    .arena { aspect-ratio: auto; min-height: 360px; }
   }
   .arena::before, .arena::after {
     content: '';
     position: absolute;
-    top: 0; bottom: 0; width: 60px;
-    background: linear-gradient(90deg, var(--bg) 0%, transparent 100%);
+    top: 0; bottom: 0; width: 40px;
     pointer-events: none;
     z-index: 1;
   }
-  .arena::before { left: 0; }
-  .arena::after { right: 0; background: linear-gradient(270deg, var(--bg) 0%, transparent 100%); }
+  .arena::before { left: 0; background: linear-gradient(90deg, rgba(0,0,0,0.4) 0%, transparent 100%); }
+  .arena::after { right: 0; background: linear-gradient(270deg, rgba(0,0,0,0.4) 0%, transparent 100%); }
+  /* Ground area pinned to the bottom 32% — that's where the arena-bg.png floor is. */
   .arena-ground {
-    flex: 1;
+    position: absolute;
+    bottom: 4%; left: 0; right: 0;
+    height: 38%;
     display: flex; justify-content: space-around; align-items: flex-end;
-    padding: 12px 24px;
-    position: relative;
-    z-index: 2;
+    padding: 0 20px;
+    z-index: 3;
   }
   .duelist {
-    width: 140px; height: 200px;
+    width: clamp(110px, 22%, 170px);
+    height: 100%;
     background: transparent;
     border: none;
     display: flex; align-items: flex-end; justify-content: center;
@@ -407,14 +436,23 @@
     color: var(--accent);
     transition: transform 0.4s;
     position: relative;
-    filter: drop-shadow(0 8px 12px rgba(0,0,0,0.5));
+    filter: drop-shadow(0 8px 12px rgba(0,0,0,0.6));
   }
   .duelist img {
     width: 100%; height: 100%;
     object-fit: contain;
+    object-position: center bottom;
     image-rendering: pixelated;
     image-rendering: -moz-crisp-edges;
     image-rendering: crisp-edges;
+  }
+  .duelist-name {
+    position: absolute;
+    bottom: -16px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px; font-weight: 800; letter-spacing: 0.1em;
+    color: var(--fg-dim);
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
   }
   .duelist-name {
     position: absolute; bottom: -22px;
@@ -434,27 +472,35 @@
     letter-spacing: 0.1em;
   }
 
+  /* Clash text — floats in the upper-middle of the arena, doesn't push ground */
   .arena-clash {
+    position: absolute;
+    top: 8%; left: 0; right: 0;
     text-align: center;
-    padding: 20px 12px 8px;
-    z-index: 2;
-    position: relative;
+    padding: 0 20px;
+    z-index: 4;
+    pointer-events: none;
   }
   .arena-clash-text {
-    font-size: 18px; font-weight: 800;
-    color: var(--fg); margin-bottom: 4px;
+    font-size: clamp(15px, 2vw, 20px); font-weight: 800;
+    color: var(--fg);
+    margin-bottom: 4px;
     min-height: 26px;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.8), 0 0 12px rgba(0,0,0,0.6);
   }
   .arena-clash-detail {
-    font-size: 12px; color: var(--fg-soft);
+    font-size: clamp(11px, 1.4vw, 13px);
+    color: var(--fg-soft);
     min-height: 16px;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.8);
   }
 
-  /* Action buttons under arena */
+  /* Action buttons — moved OUTSIDE the arena, below it */
   .action-row {
     display: flex; gap: 10px; justify-content: center;
     margin-top: 12px;
     flex-wrap: wrap;
+    padding: 0 4px;
   }
   .action-btn {
     background: var(--accent); color: white;
@@ -951,15 +997,13 @@ function render() {
 }
 
 function renderSplash() {
-  const heroHtml = IMG_OK.splash
-    ? `<img src="assets/splash-hero.png" alt="Two duelists facing off in a dungeon arena" decoding="async" />`
-    : `<div class="placeholder">⚔️<br/><strong style="color: var(--accent); font-size: 18px;">DotDuel</strong><br/><span style="font-size: 11px;">Loading hero image...</span></div>`;
   $('screen').innerHTML = `
     <section class="splash">
-      <div class="splash-hero-frame">${heroHtml}</div>
-      <h1 class="splash-title">DotDuel</h1>
-      <p class="splash-sub">Tactile 1v1 Card Duel · Dot Pad + Voice</p>
-      <button class="splash-start" id="btn-splash-start" type="button" aria-label="Enter lobby">▶ START</button>
+      <h1 class="splash-title-big" aria-label="DotDuel">D<span class="title-star">✦</span>tDuel</h1>
+      <div class="splash-divider" aria-hidden="true"></div>
+      <p class="splash-sub-v2">Tactile · 1v1 · Dot Pad + Voice</p>
+      <button class="splash-start" id="btn-splash-start" type="button" aria-label="Press start to enter the lobby">▶ Press Start</button>
+      <div class="splash-footer" aria-hidden="true">© 2026 Dot Incorporation · v0.2 BETA</div>
     </section>
   `;
   $('btn-splash-start').addEventListener('click', () => {
@@ -1139,6 +1183,10 @@ function renderMatch() {
         <div class="hand-list" id="hand-list">${handHtml}</div>
       </div>
       <div class="arena" role="region" aria-label="Duel arena" style="${IMG_OK.arena ? `background-image: url('assets/arena-bg.png'), linear-gradient(180deg, rgba(0,0,0,0.5) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.4) 100%); background-size: cover, auto; background-position: center; image-rendering: pixelated;` : ''}">
+        <div class="arena-clash" id="arena-clash">
+          <div class="arena-clash-text" id="clash-text">${m.phase === 'PLANNING' ? 'Choose your card' : ''}</div>
+          <div class="arena-clash-detail" id="clash-detail"></div>
+        </div>
         <div class="arena-ground">
           <div class="duelist" id="duelist-me" aria-label="You — fox spearmaster">${IMG_OK.fox ? `<img src="assets/duelist-fox.png" alt="" />` : '🦊'}
             <span class="duelist-name">YOU</span>
@@ -1148,14 +1196,10 @@ function renderMatch() {
             <span class="duelist-name">BOT</span>
           </div>
         </div>
-        <div class="arena-clash" id="arena-clash">
-          <div class="arena-clash-text" id="clash-text">${m.phase === 'PLANNING' ? 'Choose your card' : ''}</div>
-          <div class="arena-clash-detail" id="clash-detail"></div>
-        </div>
-        <div class="action-row">
-          <button class="action-btn" id="btn-commit" type="button" aria-label="Commit selected card">▶ Commit (F3)</button>
-          <button class="action-btn secondary" id="btn-briefing" type="button" aria-label="Briefing">F1 Briefing</button>
-        </div>
+      </div>
+      <div class="action-row">
+        <button class="action-btn" id="btn-commit" type="button" aria-label="Commit selected card">▶ Commit (F3)</button>
+        <button class="action-btn secondary" id="btn-briefing" type="button" aria-label="Briefing">F1 Briefing</button>
       </div>
       <div class="side-panel">
         <h3 class="panel-title">Opponent Log</h3>
