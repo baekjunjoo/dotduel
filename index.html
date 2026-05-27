@@ -1,0 +1,1703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DotDuel — Tactile 1v1 Card Duel</title>
+<style>
+  :root {
+    --bg:          #1a1208;
+    --bg-card:     #2a1c10;
+    --bg-soft:     #3a2a1c;
+    --line:        #5a3a1c;
+    --fg:          #f5e9d4;
+    --fg-soft:     #d4c4a8;
+    --fg-dim:      #a89880;
+    --fg-faint:    #6a5a48;
+    --accent:      #ff7a45;
+    --accent-dark: #d65a2a;
+    --ok:          #6dd99a;
+    --warn:        #ffd84a;
+    --danger:      #c0392b;
+    --gold:        #d4a017;
+    --purple:      #8e44ad;
+    --steel:       #a0a8b8;
+    --radius:      10px;
+    --radius-sm:   6px;
+    --radius-lg:   16px;
+    --shadow:      0 4px 16px rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); font-family: 'Trebuchet MS', system-ui, sans-serif; }
+  body { min-height: 100vh; overflow-x: hidden; }
+
+  /* Skip link */
+  .skip-link {
+    position: absolute; top: -40px; left: 0;
+    background: var(--accent); color: white;
+    padding: 8px 14px; z-index: 1000;
+  }
+  .skip-link:focus { top: 0; }
+
+  /* ============ HEADER ============ */
+  .lab-header {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 250;
+    background: rgba(10,8,4,0.96);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    padding: 8px 20px 0;
+    color: var(--fg-dim);
+    font-size: 13px;
+  }
+  .lab-header-top {
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 8px; width: 100%;
+  }
+  @media (max-width: 540px) {
+    .lab-header { padding: 6px 12px 0; }
+    .lab-header .brand-sub { display: none; }
+    .icon-btn { font-size: 11px; padding: 8px 10px; min-height: 40px; }
+  }
+  .brand-row { display: inline-flex; align-items: center; gap: 8px; }
+  .brand {
+    font-size: 12px; letter-spacing: 0.18em; color: var(--fg-dim);
+    font-weight: 700;
+  }
+  .brand b { color: var(--accent); }
+  .beta-badge {
+    display: inline-flex; align-items: center;
+    padding: 3px 8px;
+    font-size: 9px; font-weight: 800; letter-spacing: 0.18em;
+    color: var(--accent);
+    background: rgba(255, 122, 69, 0.12);
+    border: 1px solid rgba(255, 122, 69, 0.5);
+    border-radius: 999px; line-height: 1;
+    text-transform: uppercase;
+  }
+  .controls { display: flex; gap: 6px; align-items: center; }
+  .icon-btn {
+    background: var(--bg-card); border: 1px solid var(--line);
+    color: var(--fg-soft); font-size: 12px; padding: 9px 14px;
+    cursor: pointer; font-family: inherit; letter-spacing: 0.04em;
+    border-radius: 999px; font-weight: 600;
+    transition: all 0.15s;
+    min-height: 40px; min-width: 40px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .icon-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .icon-btn.connected { background: var(--ok); color: var(--bg); border-color: var(--ok); }
+  .lab-keymap {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 6px 10px; padding: 6px 0;
+    margin-top: 6px;
+    border-top: 1px dashed var(--line);
+    font-size: 11px; color: var(--fg-soft); line-height: 1.2;
+  }
+  .km-label {
+    color: var(--accent); font-weight: 700;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    font-size: 10px; margin-right: 4px;
+  }
+  .km {
+    display: inline-flex; align-items: center; gap: 5px;
+    white-space: nowrap; color: var(--fg-soft);
+  }
+  .lab-keymap kbd {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 22px; height: 22px;
+    padding: 0 6px;
+    background: var(--bg); border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 700; color: var(--accent);
+  }
+  @media (max-width: 540px) {
+    .lab-keymap { gap: 4px 8px; font-size: 10px; padding: 4px 0; }
+    .km-label { display: none; }
+    .lab-keymap kbd { min-width: 18px; height: 18px; font-size: 9px; padding: 0 3px; }
+  }
+
+  /* ============ MAIN ============ */
+  main {
+    max-width: 1200px; margin: 0 auto;
+    padding: 130px 16px 32px;
+  }
+  @media (max-width: 540px) { main { padding-top: 118px; } }
+
+  /* ============ SPLASH ============ */
+  .splash {
+    text-align: center;
+    padding: 40px 20px 60px;
+  }
+  .splash-hero-frame {
+    width: 100%; max-width: 720px;
+    aspect-ratio: 4/3;
+    margin: 0 auto 24px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-soft);
+    border: 2px solid var(--line);
+    overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  .splash-hero-frame img { width: 100%; height: 100%; object-fit: cover; image-rendering: pixelated; }
+  .splash-hero-frame .placeholder {
+    color: var(--fg-faint); font-size: 14px; text-align: center;
+    padding: 20px;
+  }
+  .splash-title {
+    font-size: clamp(48px, 8vw, 88px); font-weight: 900;
+    letter-spacing: -0.02em;
+    background: linear-gradient(180deg, var(--accent), var(--gold));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    margin: 0 0 8px;
+    line-height: 1;
+  }
+  .splash-sub {
+    font-size: 16px; color: var(--fg-soft); margin: 0 0 36px;
+    font-weight: 500; letter-spacing: 0.04em;
+  }
+  .splash-start {
+    padding: 16px 36px;
+    background: var(--accent); color: white;
+    border: none; border-radius: 999px;
+    font-size: 18px; font-weight: 800;
+    cursor: pointer; font-family: inherit;
+    letter-spacing: 0.04em;
+    box-shadow: 0 4px 12px rgba(255,122,69,0.4);
+    transition: transform 0.12s, box-shadow 0.12s;
+  }
+  .splash-start:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(255,122,69,0.5); }
+  .splash-start:active { transform: translateY(0); }
+
+  /* ============ LOBBY ============ */
+  .lobby-title {
+    font-size: clamp(28px, 5vw, 44px); font-weight: 800;
+    color: var(--fg); text-align: center; margin: 8px 0 24px;
+  }
+  .lobby-modes {
+    display: grid; gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    margin-bottom: 28px;
+  }
+  .mode-card {
+    background: var(--bg-card);
+    border: 2px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 20px 18px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+    font-family: inherit;
+    color: var(--fg);
+    min-height: 130px;
+    display: flex; flex-direction: column;
+  }
+  .mode-card:hover { border-color: var(--accent); transform: translateY(-2px); box-shadow: var(--shadow); }
+  .mode-card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .mode-card.disabled { opacity: 0.55; cursor: not-allowed; }
+  .mode-card.disabled:hover { border-color: var(--line); transform: none; box-shadow: none; }
+  .mode-icon { font-size: 32px; margin-bottom: 8px; }
+  .mode-name { font-size: 18px; font-weight: 800; margin: 0 0 4px; color: var(--fg); letter-spacing: 0.04em; }
+  .mode-desc { font-size: 12px; color: var(--fg-dim); margin: 0; line-height: 1.4; }
+  .mode-tag {
+    display: inline-block;
+    font-size: 9px; font-weight: 800; letter-spacing: 0.1em;
+    background: rgba(255,122,69,0.15);
+    color: var(--accent);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-top: auto; align-self: flex-start;
+    margin-top: 8px;
+  }
+  .mode-tag.soon { background: rgba(168,152,128,0.15); color: var(--fg-dim); }
+
+  .difficulty-row {
+    display: none;
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 16px;
+    margin-bottom: 18px;
+    text-align: center;
+  }
+  .difficulty-row.show { display: block; }
+  .difficulty-row h3 { margin: 0 0 12px; font-size: 14px; color: var(--accent); letter-spacing: 0.06em; }
+  .diff-options { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+  .diff-btn {
+    background: var(--bg-card); border: 1.5px solid var(--line);
+    color: var(--fg-soft);
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-family: inherit; font-size: 13px; font-weight: 700;
+    cursor: pointer; letter-spacing: 0.04em;
+    min-height: 44px;
+  }
+  .diff-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .diff-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+  /* ============ MATCH (Arena) ============ */
+  .match-screen {
+    display: grid;
+    grid-template-columns: 200px 1fr 200px;
+    gap: 12px;
+    padding: 0 4px;
+  }
+  @media (max-width: 880px) {
+    .match-screen { grid-template-columns: 1fr; }
+    .match-screen .side-panel { order: 3; }
+    .match-screen .arena { order: 1; }
+  }
+
+  /* Stats row on top of arena */
+  .stats-row {
+    grid-column: 1 / -1;
+    display: flex; justify-content: space-between; align-items: center;
+    background: var(--bg-card);
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    margin-bottom: 8px;
+  }
+  .stats-side { display: flex; align-items: center; gap: 8px; min-width: 100px; }
+  .stats-side.right { justify-content: flex-end; }
+  .player-label { font-size: 10px; font-weight: 800; letter-spacing: 0.1em; color: var(--fg-dim); }
+  .hp-hearts { display: inline-flex; gap: 2px; }
+  .hp-heart {
+    width: 14px; height: 14px;
+    background: var(--danger);
+    clip-path: polygon(50% 90%, 0% 30%, 0% 10%, 25% 0%, 50% 20%, 75% 0%, 100% 10%, 100% 30%);
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .hp-heart.empty { background: transparent; outline: 1.5px solid var(--fg-faint); outline-offset: -1px; }
+  .hp-heart.recent { animation: heartPulse 0.4s ease-out; }
+  @keyframes heartPulse {
+    0% { transform: scale(1.4); }
+    100% { transform: scale(1); }
+  }
+  .stats-center {
+    display: flex; flex-direction: column; align-items: center;
+    font-size: 11px; color: var(--fg-dim); gap: 2px;
+    letter-spacing: 0.06em;
+  }
+  .stats-center .turn-num { font-size: 24px; font-weight: 900; color: var(--accent); line-height: 1; }
+  .stats-center .turn-label { font-size: 10px; font-weight: 700; }
+  .stats-center .phase-name { font-size: 11px; color: var(--fg-soft); font-weight: 700; margin-top: 2px; }
+  .stats-center .timer {
+    font-size: 12px; font-weight: 800; color: var(--warn);
+    background: rgba(255,216,74,0.12); padding: 2px 8px; border-radius: 999px;
+    margin-top: 2px; min-width: 36px;
+  }
+  .stats-center .timer.danger { color: var(--danger); animation: timerPulse 0.5s infinite alternate; }
+  @keyframes timerPulse { from { opacity: 1; } to { opacity: 0.5; } }
+
+  /* Side panels (hand + opponent log) */
+  .side-panel {
+    background: var(--bg-card);
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+    min-height: 360px;
+  }
+  .panel-title {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.12em;
+    color: var(--accent); margin: 0 0 10px;
+    text-transform: uppercase;
+  }
+  .hand-list { display: flex; flex-direction: column; gap: 6px; }
+  .hand-card {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    background: var(--bg-soft);
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius-sm);
+    cursor: pointer; font-family: inherit;
+    color: var(--fg); text-align: left;
+    transition: all 0.15s;
+    min-height: 44px;
+  }
+  .hand-card:hover { border-color: var(--fg-dim); }
+  .hand-card.focused {
+    border-color: var(--accent);
+    background: rgba(255,122,69,0.12);
+    box-shadow: 0 0 0 1px var(--accent), 0 0 12px rgba(255,122,69,0.3);
+    transform: scale(1.02);
+  }
+  .hand-card.committed { opacity: 0.4; pointer-events: none; }
+  .hand-card-icon {
+    width: 28px; height: 28px;
+    background: var(--bg-card);
+    border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 14px;
+    flex-shrink: 0;
+  }
+  .hand-card-icon.spear { color: var(--steel); }
+  .hand-card-icon.shield { color: var(--gold); }
+  .hand-card-icon.special { color: var(--purple); }
+  .hand-card-text { flex: 1; min-width: 0; }
+  .hand-card-name { font-size: 12px; font-weight: 700; color: var(--fg); margin-bottom: 1px; letter-spacing: 0.02em; }
+  .hand-card-stat { font-size: 10px; color: var(--fg-dim); }
+
+  .log-list { display: flex; flex-direction: column; gap: 6px; }
+  .log-item {
+    padding: 8px 10px;
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    font-size: 11px;
+  }
+  .log-turn { color: var(--fg-dim); font-size: 9px; font-weight: 800; letter-spacing: 0.1em; margin-bottom: 2px; }
+  .log-card { color: var(--fg); font-weight: 700; }
+  .log-result { color: var(--fg-soft); font-size: 10px; margin-top: 2px; }
+  .log-empty { color: var(--fg-faint); font-size: 11px; padding: 14px; text-align: center; }
+
+  /* Arena */
+  .arena {
+    background: var(--bg-soft);
+    background-image:
+      radial-gradient(ellipse at center bottom, rgba(255,122,69,0.12) 0%, transparent 60%),
+      linear-gradient(180deg, rgba(0,0,0,0.4) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.3) 100%);
+    border: 2px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    display: flex; flex-direction: column;
+    min-height: 360px;
+    position: relative;
+    overflow: hidden;
+  }
+  .arena::before, .arena::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0; width: 60px;
+    background: linear-gradient(90deg, var(--bg) 0%, transparent 100%);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .arena::before { left: 0; }
+  .arena::after { right: 0; background: linear-gradient(270deg, var(--bg) 0%, transparent 100%); }
+  .arena-ground {
+    flex: 1;
+    display: flex; justify-content: space-around; align-items: flex-end;
+    padding: 12px 24px;
+    position: relative;
+    z-index: 2;
+  }
+  .duelist {
+    width: 120px; height: 180px;
+    background: var(--bg-card);
+    border: 1.5px solid var(--line);
+    border-radius: var(--radius);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 60px;
+    color: var(--accent);
+    transition: transform 0.4s;
+    position: relative;
+  }
+  .duelist img { width: 100%; height: 100%; object-fit: contain; image-rendering: pixelated; border-radius: var(--radius); }
+  .duelist-name {
+    position: absolute; bottom: -22px;
+    font-size: 10px; font-weight: 800; letter-spacing: 0.08em;
+    color: var(--fg-dim);
+  }
+  .duelist.hit { animation: hitFlash 0.4s; }
+  @keyframes hitFlash {
+    0% { transform: translateX(0); filter: none; }
+    20% { transform: translateX(8px); filter: hue-rotate(0deg) brightness(1.6) saturate(2); }
+    40% { transform: translateX(-6px); }
+    60% { transform: translateX(4px); filter: none; }
+    100% { transform: translateX(0); }
+  }
+  .arena-vs {
+    font-size: 22px; font-weight: 900; color: var(--accent);
+    letter-spacing: 0.1em;
+  }
+
+  .arena-clash {
+    text-align: center;
+    padding: 20px 12px 8px;
+    z-index: 2;
+    position: relative;
+  }
+  .arena-clash-text {
+    font-size: 18px; font-weight: 800;
+    color: var(--fg); margin-bottom: 4px;
+    min-height: 26px;
+  }
+  .arena-clash-detail {
+    font-size: 12px; color: var(--fg-soft);
+    min-height: 16px;
+  }
+
+  /* Action buttons under arena */
+  .action-row {
+    display: flex; gap: 10px; justify-content: center;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .action-btn {
+    background: var(--accent); color: white;
+    border: none; border-radius: 999px;
+    padding: 12px 22px;
+    font-family: inherit; font-size: 13px; font-weight: 800;
+    cursor: pointer; letter-spacing: 0.06em;
+    min-height: 44px;
+    transition: all 0.12s;
+    box-shadow: 0 2px 8px rgba(255,122,69,0.3);
+  }
+  .action-btn:hover { background: var(--accent-dark); }
+  .action-btn:active { transform: translateY(1px); }
+  .action-btn.secondary {
+    background: transparent; color: var(--fg-soft);
+    border: 1.5px solid var(--line); box-shadow: none;
+  }
+  .action-btn.secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Overlay (modal) */
+  .overlay {
+    position: fixed; inset: 0; z-index: 500;
+    background: rgba(10,8,4,0.85);
+    display: none; align-items: center; justify-content: center;
+    padding: 20px;
+  }
+  .overlay.open { display: flex; }
+  .overlay-card {
+    background: var(--bg-card); border: 2px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 28px 24px;
+    max-width: 480px; width: 100%;
+    text-align: center;
+  }
+  .overlay-card h2 {
+    color: var(--accent); font-size: 22px;
+    margin: 0 0 12px; letter-spacing: -0.01em;
+  }
+  .overlay-card p { color: var(--fg-soft); font-size: 14px; line-height: 1.5; margin: 0 0 20px; }
+  .overlay-card .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+  /* Game over overlay */
+  .game-over .result-title {
+    font-size: 48px; font-weight: 900;
+    margin: 0 0 4px;
+    letter-spacing: 0.05em;
+  }
+  .game-over .result-title.win { color: var(--ok); text-shadow: 0 0 16px rgba(109,217,154,0.4); }
+  .game-over .result-title.lose { color: var(--danger); text-shadow: 0 0 16px rgba(192,57,43,0.4); }
+  .game-over .result-title.draw { color: var(--warn); }
+  .game-over .result-stats { color: var(--fg-dim); font-size: 13px; margin: 8px 0 20px; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--bg-card); border: 1.5px solid var(--accent);
+    color: var(--fg); padding: 12px 20px;
+    border-radius: var(--radius);
+    font-size: 13px; font-weight: 700;
+    z-index: 999;
+    box-shadow: var(--shadow);
+    opacity: 0; transition: opacity 0.25s, transform 0.25s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* Live region */
+  .live-region {
+    position: absolute; left: -10000px; width: 1px; height: 1px;
+    overflow: hidden;
+  }
+
+  /* Dot Pad connect overlay (reused dpd style) */
+  .dotpad-popup {
+    position: fixed; top: 130px; right: 16px;
+    background: var(--bg-card); border: 1.5px solid var(--accent);
+    padding: 16px; border-radius: var(--radius);
+    min-width: 220px; z-index: 400;
+    display: none; box-shadow: var(--shadow);
+  }
+  .dotpad-popup.open { display: block; }
+  .dotpad-popup-title {
+    font-size: 11px; letter-spacing: 0.12em; color: var(--accent);
+    font-weight: 800; margin-bottom: 10px; text-transform: uppercase;
+  }
+  .dotpad-popup-btn {
+    display: block; width: 100%;
+    background: var(--bg); border: 1px solid var(--line); color: var(--fg);
+    padding: 10px 12px; font-size: 13px; cursor: pointer;
+    font-family: inherit; margin-bottom: 6px; text-align: left;
+    border-radius: var(--radius-sm);
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .dotpad-popup-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .dotpad-popup-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+  .dotpad-popup-hint { font-size: 10px; color: var(--fg-faint); margin-top: 8px; line-height: 1.4; }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
+
+<header class="lab-header" role="banner">
+  <div class="lab-header-top">
+    <div class="brand-row">
+      <div class="brand">DOT <b>ARCADE</b></div>
+      <span class="beta-badge" aria-label="Beta version">BETA</span>
+    </div>
+    <div class="controls" role="toolbar" aria-label="App controls">
+      <button class="icon-btn" id="btn-dotpad" type="button" aria-label="Connect Dot Pad">PAD</button>
+      <button class="icon-btn active" id="btn-voice" type="button" aria-pressed="true" aria-label="Toggle voice">Voice</button>
+      <button class="icon-btn active" id="btn-sfx" type="button" aria-pressed="true" aria-label="Toggle sound effects">FX</button>
+      <button class="icon-btn" id="btn-home" type="button" aria-label="Return to lobby">⌂</button>
+    </div>
+  </div>
+  <div class="lab-keymap" role="region" aria-label="Dot Pad key map">
+    <span class="km-label">Dot Pad</span>
+    <span class="km"><kbd>F1</kbd> Briefing</span>
+    <span class="km"><kbd>F2</kbd> Card Desc</span>
+    <span class="km"><kbd>F3</kbd> Commit</span>
+    <span class="km"><kbd>F4</kbd> Cancel</span>
+    <span class="km"><kbd aria-label="Left pan">⟨</kbd> Prev</span>
+    <span class="km"><kbd aria-label="Right pan">⟩</kbd> Next</span>
+    <span class="km"><kbd aria-label="Center pan">⊙</kbd> Replay</span>
+  </div>
+</header>
+
+<!-- Dot Pad SDK loader -->
+<script type="module">
+  try {
+    const { DotPadSDK, DotPadScanner, DisplayMode, DataCodes, KeyCodes }
+      = await import('./dotpad-sdk/DotPadSDK-3.0.0.js');
+    window.DotPad = {
+      sdk: new DotPadSDK(),
+      scanner: new DotPadScanner(),
+      DisplayMode, DataCodes, KeyCodes,
+    };
+    console.log('[DotDuel] Dot Pad SDK loaded');
+  } catch (err) {
+    window._dotpadLoadError = err.message || String(err);
+    console.warn('[DotDuel] SDK load failed:', err);
+  }
+</script>
+
+<main id="main-content" role="main">
+  <div id="screen"></div>
+</main>
+
+<div class="dotpad-popup" id="dotpad-popup" role="dialog" aria-labelledby="dpd-title">
+  <div class="dotpad-popup-title" id="dpd-title">Connect Dot Pad</div>
+  <button class="dotpad-popup-btn" id="dpd-ble" type="button">📶 Bluetooth</button>
+  <button class="dotpad-popup-btn" id="dpd-usb" type="button">🔗 USB</button>
+  <button class="dotpad-popup-btn danger" id="dpd-disc" type="button" hidden>Disconnect</button>
+  <div class="dotpad-popup-hint">Chrome/Edge desktop · HTTPS required</div>
+</div>
+
+<div class="overlay" id="overlay-game-over" role="dialog" aria-labelledby="result-title">
+  <div class="overlay-card game-over">
+    <h2 id="result-title" class="result-title">VICTORY</h2>
+    <div id="result-stats" class="result-stats"></div>
+    <p id="result-msg"></p>
+    <div class="actions">
+      <button class="action-btn" id="result-rematch" type="button">Rematch</button>
+      <button class="action-btn secondary" id="result-lobby" type="button">To Lobby</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-confirm" role="dialog" aria-labelledby="confirm-title">
+  <div class="overlay-card">
+    <h2 id="confirm-title">Confirm</h2>
+    <p id="confirm-msg">Are you sure?</p>
+    <div class="actions">
+      <button class="action-btn" id="confirm-yes" type="button">Yes</button>
+      <button class="action-btn secondary" id="confirm-no" type="button">No</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="live-region" id="live-region" aria-live="polite" aria-atomic="true"></div>
+
+<script>
+'use strict';
+
+// ============================================================
+// CONSTANTS — Card data
+// ============================================================
+const CARDS = {
+  s_wood:   { id:'s_wood',   name:'Wooden Spear',  cat:'spear',  atk:1, def:0, eff:null,           desc:'Basic attack 1.', sym:'TRI_S' },
+  s_steel:  { id:'s_steel',  name:'Steel Spear',   cat:'spear',  atk:2, def:0, eff:null,           desc:'Reliable attack 2.', sym:'TRI_M' },
+  s_long:   { id:'s_long',   name:'Long Spear',    cat:'spear',  atk:3, def:0, eff:'self_def_-1',  desc:'Heavy 3 attack. Next turn defense -1.', sym:'TRI_L' },
+  s_bolt:   { id:'s_bolt',   name:'Lightning Spear', cat:'spear', atk:2, def:0, eff:'pierce',     desc:'Attack 2 — ignores opponent shield.', sym:'TRI_Z' },
+  s_twin:   { id:'s_twin',   name:'Twin Spear',    cat:'spear',  atk:2, def:0, eff:'twin',        desc:'Two strikes of 1 each (vs shield, both checked).', sym:'TRI_TW' },
+  d_wood:   { id:'d_wood',   name:'Wood Shield',   cat:'shield', atk:0, def:1, eff:null,           desc:'Block 1.', sym:'SQR_S' },
+  d_iron:   { id:'d_iron',   name:'Iron Shield',   cat:'shield', atk:0, def:2, eff:null,           desc:'Block 2.', sym:'SQR_M' },
+  d_tower:  { id:'d_tower',  name:'Tower Shield',  cat:'shield', atk:0, def:3, eff:'persist',     desc:'Block 3 — lasts 2 turns (no attack next turn).', sym:'SQR_L' },
+  d_mirror: { id:'d_mirror', name:'Mirror Shield', cat:'shield', atk:0, def:1, eff:'reflect',     desc:'Block 1 + reflect half of blocked damage (round up).', sym:'SQR_X' },
+  x_heal:   { id:'x_heal',   name:'First Aid',     cat:'special', atk:0, def:0, eff:'heal_2',     desc:'Restore 2 HP (still takes incoming damage this turn).', sym:'CIR_S' },
+  x_feint:  { id:'x_feint',  name:'Feint',         cat:'special', atk:0, def:0, eff:'obscure_1',  desc:'Hide your next card category from opponent.', sym:'CIR_DOT' },
+  x_duel:   { id:'x_duel',   name:'Challenge',     cat:'special', atk:2, def:0, eff:'duel',       desc:'Both sides take 2 damage. No shield works.', sym:'CIR_L' },
+};
+const CARD_ID_LIST = Object.keys(CARDS);
+const STARTING_HP = 10;
+const MAX_TURNS = 15;
+const HAND_MAX = 5;
+const HAND_START = 3;
+const DECK_DEFAULT = ['s_wood','s_wood','s_steel','s_steel','s_long','s_bolt','s_twin','d_wood','d_wood','d_iron','d_iron','d_tower','d_mirror','x_heal','x_feint','x_duel']; // 16 cards
+const PLANNING_TIMER_DEFAULT = 25; // seconds
+
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  screen: 'splash',            // splash | lobby | tutorial | match | gameOver
+  ttsOn: true,
+  sfxOn: true,
+  dotpadConnected: false,
+  dotpadDevice: null,
+  dotpadName: '',
+  difficulty: 'medium',
+  match: null,                 // { turn, myHp, opHp, myDeck, myHand, myFocus, myCommit, opLastCard, opLastResult, phase, timer, modifiers, log, mode }
+  lastSpeech: '',
+  ttsPlaying: false,
+  _planningTimer: null,
+  _clashTimer: null,
+  _blinkPhase: 0,
+};
+
+// Settings persist
+const SAVE_KEY = 'dotduel:save:v1';
+function saveSettings() {
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      ttsOn: state.ttsOn, sfxOn: state.sfxOn, difficulty: state.difficulty,
+    }));
+  } catch(e){}
+}
+function loadSettings() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (typeof s.ttsOn === 'boolean') state.ttsOn = s.ttsOn;
+    if (typeof s.sfxOn === 'boolean') state.sfxOn = s.sfxOn;
+    if (s.difficulty) state.difficulty = s.difficulty;
+  } catch(e){}
+}
+
+// ============================================================
+// TTS — DotPet quality pattern
+// ============================================================
+let _preferredVoiceEn = null;
+function _loadVoices() {
+  if (!window.speechSynthesis) return;
+  const voices = speechSynthesis.getVoices();
+  const en = voices.filter(v => v.lang && v.lang.startsWith('en'));
+  const isLow = (name) => /albert|bahh|bells|boing|bubbles|cellos|deranged|good news|hysterical|junior|pipe organ|trinoids|whisper|zarvox|bad news|kathy/i.test(name);
+  _preferredVoiceEn =
+    en.find(v => /Google US English/i.test(v.name)) ||
+    en.find(v => /^(Samantha|Ava|Alex|Karen|Allison|Susan|Tessa)$/i.test(v.name) && v.lang === 'en-US') ||
+    en.find(v => /^(Samantha|Ava|Alex|Karen|Allison|Susan|Tessa)/i.test(v.name)) ||
+    en.find(v => /Aria|Jenny|Guy|Davis|Sara|Emma/i.test(v.name) && /Neural|Online/i.test(v.name)) ||
+    en.find(v => v.lang === 'en-US' && v.default && !isLow(v.name)) ||
+    en.find(v => v.lang === 'en-US' && !isLow(v.name)) ||
+    en.find(v => !isLow(v.name)) ||
+    en[0];
+}
+if (window.speechSynthesis) {
+  speechSynthesis.onvoiceschanged = _loadVoices;
+  _loadVoices();
+}
+let _lastSpokenAt = 0; let _lastSpokenText = '';
+function speak(text) {
+  if (!state.ttsOn || !window.speechSynthesis) return;
+  const cleaned = (text || '').replace(/\[(.*?)\]/g, '').trim();
+  if (!cleaned) return;
+  const now = Date.now();
+  if (cleaned === _lastSpokenText && (now - _lastSpokenAt) < 800) return;
+  _lastSpokenText = cleaned; _lastSpokenAt = now;
+  state.lastSpeech = cleaned;
+  try {
+    window.speechSynthesis.cancel();
+    try { if (speechSynthesis.paused) speechSynthesis.resume(); } catch(e){}
+    const u = new SpeechSynthesisUtterance(cleaned);
+    u.lang = 'en-US'; u.rate = 1.0; u.pitch = 1.0; u.volume = 1;
+    if (_preferredVoiceEn) u.voice = _preferredVoiceEn;
+    setTimeout(() => { try { window.speechSynthesis.speak(u); } catch(e){} }, 0);
+  } catch(e){}
+}
+function stopSpeak() {
+  try { window.speechSynthesis.cancel(); } catch(e){}
+}
+
+// ============================================================
+// SFX — Web Audio simple synthesizer
+// ============================================================
+let _audioCtx = null;
+function _audio() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { return null; }
+  }
+  if (_audioCtx.state === 'suspended') _audioCtx.resume().catch(()=>{});
+  return _audioCtx;
+}
+function _tone(freq, dur, type='sine', vol=0.18, attack=0.005) {
+  if (!state.sfxOn) return;
+  const ctx = _audio(); if (!ctx) return;
+  const t = ctx.currentTime;
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vol, t + attack);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(ctx.destination);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+function _sweep(f1, f2, dur, type='sine', vol=0.18) {
+  if (!state.sfxOn) return;
+  const ctx = _audio(); if (!ctx) return;
+  const t = ctx.currentTime;
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.type = type; o.frequency.setValueAtTime(f1, t);
+  o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vol, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(ctx.destination);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+const SFX = {
+  focus:   () => _tone(800, 0.06, 'sine', 0.12),
+  commit:  () => _sweep(220, 1800, 0.25, 'triangle', 0.22),
+  spear:   () => { _sweep(1500, 200, 0.18, 'sawtooth', 0.16); setTimeout(() => _tone(80, 0.12, 'square', 0.18), 180); },
+  shield:  () => _tone(300, 0.18, 'square', 0.2),
+  special: () => { _tone(523, 0.1, 'sine', 0.16); setTimeout(() => _tone(659, 0.1, 'sine', 0.16), 100); setTimeout(() => _tone(784, 0.18, 'sine', 0.16), 200); },
+  hit:     () => _tone(110, 0.4, 'sawtooth', 0.2),
+  heal:    () => { _tone(659, 0.08, 'sine', 0.16); setTimeout(() => _tone(880, 0.18, 'sine', 0.16), 100); },
+  turnBell:() => _tone(1500, 0.4, 'sine', 0.14),
+  win:     () => { [523,659,784,1047].forEach((f, i) => setTimeout(() => _tone(f, 0.16, 'sine', 0.22), i * 130)); },
+  lose:    () => _tone(100, 1.5, 'sawtooth', 0.18),
+  draw:    () => _tone(440, 1.5, 'sine', 0.12),
+  warn:    () => { _tone(600, 0.06, 'square', 0.14); setTimeout(() => _tone(400, 0.06, 'square', 0.14), 80); },
+  tick:    () => _tone(1200, 0.04, 'triangle', 0.1),
+};
+
+// ============================================================
+// UTIL
+// ============================================================
+function $(id) { return document.getElementById(id); }
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function toast(msg, ms=2200) {
+  const t = $('toast'); if (!t) return;
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('show'), ms);
+}
+function announce(msg) {
+  const lr = $('live-region'); if (lr) { lr.textContent = ''; setTimeout(() => lr.textContent = msg, 50); }
+}
+
+// ============================================================
+// ROUTER / RENDER
+// ============================================================
+function render() {
+  if (state.screen === 'splash') renderSplash();
+  else if (state.screen === 'lobby') renderLobby();
+  else if (state.screen === 'match') renderMatch();
+  else renderLobby();
+  updateDotpadStatus();
+}
+
+function renderSplash() {
+  $('screen').innerHTML = `
+    <section class="splash">
+      <div class="splash-hero-frame">
+        <div class="placeholder">
+          ⚔️<br/>
+          <strong style="color: var(--accent); font-size: 18px;">DotDuel</strong><br/>
+          <span style="font-size: 11px;">Place <code>assets/splash-hero.png</code> here</span>
+        </div>
+      </div>
+      <h1 class="splash-title">DotDuel</h1>
+      <p class="splash-sub">Tactile 1v1 Card Duel · Dot Pad + Voice</p>
+      <button class="splash-start" id="btn-splash-start" type="button" aria-label="Enter lobby">▶ START</button>
+    </section>
+  `;
+  $('btn-splash-start').addEventListener('click', () => {
+    state.screen = 'lobby';
+    SFX.commit();
+    render();
+  });
+}
+
+function renderLobby() {
+  $('screen').innerHTML = `
+    <section>
+      <h2 class="lobby-title">Choose a Duel</h2>
+      <div class="lobby-modes" role="list">
+        <button class="mode-card" role="listitem" data-mode="bot" type="button">
+          <div class="mode-icon">🤖</div>
+          <div class="mode-name">Bot Duel</div>
+          <p class="mode-desc">Duel against AI. Pick a difficulty.</p>
+          <span class="mode-tag">v1.0</span>
+        </button>
+        <button class="mode-card disabled" role="listitem" data-mode="quick" type="button" aria-disabled="true">
+          <div class="mode-icon">⚡</div>
+          <div class="mode-name">Quick Duel</div>
+          <p class="mode-desc">Find a real opponent online (10s queue, bot fallback).</p>
+          <span class="mode-tag soon">SOON</span>
+        </button>
+        <button class="mode-card disabled" role="listitem" data-mode="friend" type="button" aria-disabled="true">
+          <div class="mode-icon">🤝</div>
+          <div class="mode-name">Friend Duel</div>
+          <p class="mode-desc">Share a 4-digit room code with a friend.</p>
+          <span class="mode-tag soon">SOON</span>
+        </button>
+        <button class="mode-card disabled" role="listitem" data-mode="tutorial" type="button" aria-disabled="true">
+          <div class="mode-icon">📖</div>
+          <div class="mode-name">Tutorial</div>
+          <p class="mode-desc">3-step learn the duel basics.</p>
+          <span class="mode-tag soon">SOON</span>
+        </button>
+      </div>
+      <div class="difficulty-row" id="diff-row">
+        <h3>BOT DIFFICULTY</h3>
+        <div class="diff-options">
+          <button class="diff-btn ${state.difficulty==='easy'?'active':''}" data-diff="easy" type="button">Easy</button>
+          <button class="diff-btn ${state.difficulty==='medium'?'active':''}" data-diff="medium" type="button">Medium</button>
+          <button class="diff-btn ${state.difficulty==='hard'?'active':''}" data-diff="hard" type="button">Hard</button>
+        </div>
+        <div style="margin-top: 18px;">
+          <button class="action-btn" id="btn-start-bot" type="button">▶ Start Duel</button>
+        </div>
+      </div>
+    </section>
+  `;
+  document.querySelectorAll('.mode-card').forEach(el => {
+    el.addEventListener('click', () => {
+      const m = el.dataset.mode;
+      if (el.classList.contains('disabled')) {
+        toast('This mode is coming in v1.1. Try Bot Duel for now.');
+        return;
+      }
+      if (m === 'bot') {
+        $('diff-row').classList.add('show');
+        SFX.focus();
+        speak('Bot duel. Choose difficulty.');
+      }
+    });
+  });
+  document.querySelectorAll('.diff-btn').forEach(el => {
+    el.addEventListener('click', () => {
+      state.difficulty = el.dataset.diff;
+      saveSettings();
+      document.querySelectorAll('.diff-btn').forEach(b => b.classList.toggle('active', b.dataset.diff === state.difficulty));
+      SFX.focus();
+    });
+  });
+  $('btn-start-bot').addEventListener('click', () => {
+    SFX.commit();
+    startMatch({ mode: 'bot' });
+  });
+}
+
+// ============================================================
+// MATCH LIFECYCLE
+// ============================================================
+function startMatch(opts) {
+  // Initialize new match
+  const myDeck = shuffle(DECK_DEFAULT);
+  const myHand = myDeck.splice(0, HAND_START);
+  state.match = {
+    mode: opts.mode || 'bot',
+    turn: 1,
+    myHp: STARTING_HP,
+    opHp: STARTING_HP,
+    myDeck, myHand, myDiscard: [],
+    opDeck: shuffle(DECK_DEFAULT),
+    opHand: [],
+    opDiscard: [],
+    myFocus: 0,
+    myCommit: null,
+    opLastCard: null,         // category-only hint
+    opLastFullCard: null,     // set after reveal
+    obscureUntil: 0,          // turn until which opponent's category is obscured (feint)
+    selfDefMod: 0,            // long spear penalty
+    persistShield: 0,         // tower shield turns remaining
+    phase: 'PLANNING',
+    timer: PLANNING_TIMER_DEFAULT,
+    log: [],
+    botThinkUntil: 0,
+  };
+  // Opponent draws
+  state.match.opHand = state.match.opDeck.splice(0, HAND_START);
+  state.screen = 'match';
+  render();
+  SFX.turnBell();
+  speak(`Turn 1. Your HP 10, opponent 10. Choose your card. F1 for briefing.`);
+  startPlanningTimer();
+}
+
+function startPlanningTimer() {
+  clearPlanningTimer();
+  state.match.timer = PLANNING_TIMER_DEFAULT;
+  state._planningTimer = setInterval(() => {
+    if (!state.match || state.match.phase !== 'PLANNING') { clearPlanningTimer(); return; }
+    state.match.timer -= 1;
+    updateTimerDisplay();
+    if (state.match.timer === 5) speak('5 seconds.');
+    if (state.match.timer > 0 && state.match.timer <= 5) SFX.tick();
+    if (state.match.timer <= 0) {
+      clearPlanningTimer();
+      // Force commit current focus
+      commitMyCard();
+    }
+  }, 1000);
+}
+function clearPlanningTimer() {
+  if (state._planningTimer) { clearInterval(state._planningTimer); state._planningTimer = null; }
+}
+function updateTimerDisplay() {
+  const el = document.querySelector('.stats-center .timer');
+  if (el) {
+    el.textContent = state.match.timer + 's';
+    el.classList.toggle('danger', state.match.timer <= 5);
+  }
+}
+
+function renderMatch() {
+  const m = state.match;
+  if (!m) { state.screen = 'lobby'; render(); return; }
+  const myHearts = renderHearts(m.myHp, STARTING_HP);
+  const opHearts = renderHearts(m.opHp, STARTING_HP);
+  const opLastHtml = renderOpLog(m);
+  const handHtml = renderHand(m);
+  const phaseText = phaseName(m.phase);
+  $('screen').innerHTML = `
+    <div class="match-screen">
+      <div class="stats-row">
+        <div class="stats-side">
+          <div>
+            <div class="player-label">YOU</div>
+            <div class="hp-hearts" id="my-hearts" aria-label="Your HP ${m.myHp}">${myHearts}</div>
+          </div>
+        </div>
+        <div class="stats-center">
+          <div class="turn-num" id="turn-num">${m.turn}</div>
+          <div class="turn-label">TURN / ${MAX_TURNS}</div>
+          <div class="phase-name" id="phase-name">${phaseText}</div>
+          <div class="timer" id="timer-display">${m.phase === 'PLANNING' ? m.timer + 's' : '—'}</div>
+        </div>
+        <div class="stats-side right">
+          <div style="text-align:right;">
+            <div class="player-label">BOT</div>
+            <div class="hp-hearts" id="op-hearts" aria-label="Opponent HP ${m.opHp}">${opHearts}</div>
+          </div>
+        </div>
+      </div>
+      <div class="side-panel">
+        <h3 class="panel-title">Your Hand</h3>
+        <div class="hand-list" id="hand-list">${handHtml}</div>
+      </div>
+      <div class="arena" role="region" aria-label="Duel arena">
+        <div class="arena-ground">
+          <div class="duelist" id="duelist-me" aria-label="You — fox spearmaster">🦊
+            <span class="duelist-name">YOU</span>
+          </div>
+          <div class="arena-vs">VS</div>
+          <div class="duelist" id="duelist-op" aria-label="Opponent — bear shieldwarden">🐻
+            <span class="duelist-name">BOT</span>
+          </div>
+        </div>
+        <div class="arena-clash" id="arena-clash">
+          <div class="arena-clash-text" id="clash-text">${m.phase === 'PLANNING' ? 'Choose your card' : ''}</div>
+          <div class="arena-clash-detail" id="clash-detail"></div>
+        </div>
+        <div class="action-row">
+          <button class="action-btn" id="btn-commit" type="button" aria-label="Commit selected card">▶ Commit (F3)</button>
+          <button class="action-btn secondary" id="btn-briefing" type="button" aria-label="Briefing">F1 Briefing</button>
+        </div>
+      </div>
+      <div class="side-panel">
+        <h3 class="panel-title">Opponent Log</h3>
+        <div class="log-list">${opLastHtml}</div>
+      </div>
+    </div>
+  `;
+  // Bind interactions
+  document.querySelectorAll('.hand-card').forEach((el, idx) => {
+    el.addEventListener('click', () => {
+      if (!state.match || state.match.phase !== 'PLANNING') return;
+      state.match.myFocus = idx;
+      SFX.focus();
+      announceFocus();
+      render();
+    });
+  });
+  $('btn-commit').addEventListener('click', commitMyCard);
+  $('btn-briefing').addEventListener('click', announceBriefing);
+}
+
+function renderHearts(hp, max) {
+  let html = '';
+  for (let i = 0; i < max; i++) {
+    html += `<span class="hp-heart ${i >= hp ? 'empty' : ''}" aria-hidden="true"></span>`;
+  }
+  return html;
+}
+function phaseName(p) {
+  if (p === 'PLANNING') return 'Choose';
+  if (p === 'WAIT') return 'Waiting…';
+  if (p === 'CLASH') return 'Clash!';
+  if (p === 'TURN_END') return 'Resolve';
+  return p;
+}
+function renderHand(m) {
+  return m.myHand.map((cid, idx) => {
+    const c = CARDS[cid];
+    const focused = idx === m.myFocus ? 'focused' : '';
+    const committed = m.myCommit && idx === m.myFocus && m.phase !== 'PLANNING' ? 'committed' : '';
+    const sym = c.cat === 'spear' ? '▲' : c.cat === 'shield' ? '■' : '●';
+    const stat = c.cat === 'spear' ? `ATK ${c.atk}` : c.cat === 'shield' ? `DEF ${c.def}` : (c.eff || '').replace('_', ' ').toUpperCase();
+    return `
+      <button class="hand-card ${focused} ${committed}" data-idx="${idx}" type="button" aria-label="${c.name}, ${stat}">
+        <div class="hand-card-icon ${c.cat}">${sym}</div>
+        <div class="hand-card-text">
+          <div class="hand-card-name">${c.name}</div>
+          <div class="hand-card-stat">${stat}</div>
+        </div>
+      </button>
+    `;
+  }).join('');
+}
+function renderOpLog(m) {
+  if (!m.log.length) return `<div class="log-empty">No clashes yet.</div>`;
+  return m.log.slice(-3).reverse().map(entry => `
+    <div class="log-item">
+      <div class="log-turn">T${entry.turn} · OP</div>
+      <div class="log-card">${entry.opCard}</div>
+      <div class="log-result">${entry.summary}</div>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+// FOCUS / KEYS
+// ============================================================
+function moveFocus(dir) {
+  if (!state.match || state.match.phase !== 'PLANNING') return;
+  const m = state.match;
+  const next = Math.max(0, Math.min(m.myHand.length - 1, m.myFocus + dir));
+  if (next === m.myFocus) { SFX.warn(); return; }
+  m.myFocus = next;
+  SFX.focus();
+  render();
+  announceFocus();
+}
+function announceFocus() {
+  const m = state.match; if (!m) return;
+  const c = CARDS[m.myHand[m.myFocus]];
+  const stat = c.cat === 'spear' ? `attack ${c.atk}` : c.cat === 'shield' ? `defense ${c.def}` : c.eff;
+  speak(`${c.name}, ${stat}.`);
+}
+function announceCardFull() {
+  const m = state.match; if (!m) return;
+  const c = CARDS[m.myHand[m.myFocus]];
+  speak(`${c.name}. ${c.desc}`);
+}
+function announceBriefing() {
+  const m = state.match; if (!m) return;
+  speak(`Turn ${m.turn}. Your HP ${m.myHp}, opponent HP ${m.opHp}. ${m.myHand.length} cards in hand.`);
+}
+function announceHandList() {
+  const m = state.match; if (!m) return;
+  const names = m.myHand.map(c => CARDS[c].name).join('. ');
+  speak(`Your hand: ${names}.`);
+}
+
+// ============================================================
+// COMMIT
+// ============================================================
+function commitMyCard() {
+  const m = state.match;
+  if (!m || m.phase !== 'PLANNING') return;
+  clearPlanningTimer();
+  m.myCommit = m.myHand[m.myFocus];
+  m.phase = 'WAIT';
+  SFX.commit();
+  const c = CARDS[m.myCommit];
+  $('clash-text').textContent = 'Committed';
+  $('clash-detail').textContent = `${c.name}`;
+  speak(`${c.name} committed. Opponent thinking.`);
+  // Bot opponent picks card after a brief think (simulates real player)
+  const thinkMs = 800 + Math.random() * 1200;
+  setTimeout(() => {
+    if (!state.match || state.match.phase !== 'WAIT') return;
+    botCommit();
+    resolveClash();
+  }, thinkMs);
+}
+
+// ============================================================
+// BOT AI
+// ============================================================
+function botCommit() {
+  const m = state.match;
+  // Difficulty-based selection
+  let cid;
+  if (state.difficulty === 'easy') {
+    // Random
+    cid = m.opHand[Math.floor(Math.random() * m.opHand.length)];
+  } else if (state.difficulty === 'medium') {
+    // Weighted: 50% shield, 35% spear, 15% special. HP < 4: prioritize shield.
+    const lowHp = m.opHp < 4;
+    const cats = m.opHand.map(id => CARDS[id].cat);
+    const shieldOptions = m.opHand.filter(id => CARDS[id].cat === 'shield');
+    const spearOptions = m.opHand.filter(id => CARDS[id].cat === 'spear');
+    const specialOptions = m.opHand.filter(id => CARDS[id].cat === 'special');
+    const r = Math.random();
+    let preference;
+    if (lowHp) preference = 'shield';
+    else if (r < 0.50) preference = 'shield';
+    else if (r < 0.85) preference = 'spear';
+    else preference = 'special';
+    const pool = preference === 'shield' ? shieldOptions
+              : preference === 'spear' ? spearOptions
+              : specialOptions;
+    cid = (pool.length ? pool : m.opHand)[Math.floor(Math.random() * (pool.length || m.opHand.length))];
+  } else {
+    // Hard: look at recent player history and pick counter
+    const recentPlayerCards = m.log.slice(-3).map(e => e.myCardCat || 'unknown');
+    const playerSpearRate = recentPlayerCards.filter(c => c === 'spear').length / Math.max(1, recentPlayerCards.length);
+    // If player loves spear, lean shield. If shield-heavy, lean spear.
+    const wantShield = playerSpearRate > 0.5;
+    const targetCat = wantShield ? 'shield' : 'spear';
+    const pool = m.opHand.filter(id => CARDS[id].cat === targetCat);
+    cid = (pool.length ? pool : m.opHand)[Math.floor(Math.random() * (pool.length || m.opHand.length))];
+  }
+  m.opCommit = cid;
+}
+
+// ============================================================
+// CLASH RESOLUTION
+// ============================================================
+function resolveClash() {
+  const m = state.match;
+  m.phase = 'CLASH';
+  const myCard = CARDS[m.myCommit];
+  const opCard = CARDS[m.opCommit];
+
+  // Apply persistShield from previous turn if active
+  let myEffectiveDef = 0;
+  if (m.persistShield > 0) {
+    myEffectiveDef = 3; // tower shield carry-over
+    m.persistShield -= 1;
+  }
+  const opEffectiveDef = 0; // opponent tracking is simplified
+
+  // Compute damage
+  let myDmg = 0, opDmg = 0, mySummary = '', opSummary = '';
+  const myAtk = myCard.atk + (m.selfDefMod < 0 ? 0 : 0); // long spear self def -1 already tracked
+  const opAtk = opCard.atk;
+  const myDef = myCard.cat === 'shield' ? myCard.def : myEffectiveDef;
+  const opDef = opCard.cat === 'shield' ? opCard.def : opEffectiveDef;
+
+  const pierce = (c) => c.eff === 'pierce';
+  // Damage computation per category combos
+  if (myCard.cat === 'spear' && opCard.cat === 'spear') {
+    opDmg = myAtk; myDmg = opAtk;
+    mySummary = `Both struck!`;
+  } else if (myCard.cat === 'spear' && opCard.cat === 'shield') {
+    const def = pierce(myCard) ? 0 : (opCard.eff === 'reflect' ? opCard.def + m.selfDefMod : opCard.def);
+    const dmgIn = Math.max(myAtk - def, 0);
+    opDmg = dmgIn;
+    // Reflect: half of blocked goes back
+    if (opCard.eff === 'reflect' && !pierce(myCard)) {
+      const blocked = myAtk - dmgIn;
+      const reflect = Math.ceil(blocked / 2);
+      myDmg = reflect;
+      mySummary = `Hit for ${dmgIn}, reflected ${reflect}.`;
+    } else {
+      mySummary = pierce(myCard) ? `Pierced shield for ${dmgIn}!` : (dmgIn > 0 ? `Hit for ${dmgIn}.` : `Blocked.`);
+    }
+  } else if (myCard.cat === 'shield' && opCard.cat === 'spear') {
+    const def = pierce(opCard) ? 0 : (myCard.eff === 'reflect' ? myCard.def + m.selfDefMod : myCard.def);
+    const dmgIn = Math.max(opAtk - def, 0);
+    myDmg = dmgIn;
+    if (myCard.eff === 'reflect' && !pierce(opCard)) {
+      const blocked = opAtk - dmgIn;
+      const reflect = Math.ceil(blocked / 2);
+      opDmg = reflect;
+      mySummary = `Took ${dmgIn}, reflected ${reflect}.`;
+    } else {
+      mySummary = pierce(opCard) ? `Pierced! took ${dmgIn}.` : (dmgIn > 0 ? `Took ${dmgIn}.` : `Blocked!`);
+    }
+  } else if (myCard.cat === 'shield' && opCard.cat === 'shield') {
+    mySummary = `Both stood ground.`;
+  } else if (myCard.cat === 'special' || opCard.cat === 'special') {
+    // Resolve specials
+    if (myCard.eff === 'heal_2') myDmg -= 2; // heal mid-turn (then apply incoming damage too)
+    if (opCard.eff === 'heal_2') opDmg -= 2;
+    if (myCard.eff === 'duel') { myDmg += 2; opDmg += 2; }
+    if (opCard.eff === 'duel') { myDmg += 2; opDmg += 2; }
+    // If one side is special and other is spear, attacker still hits (special doesn't block unless heal_2 absorbs)
+    if (myCard.cat === 'spear' && opCard.cat === 'special') {
+      if (opCard.eff !== 'duel') opDmg += myAtk;
+    }
+    if (opCard.cat === 'spear' && myCard.cat === 'special') {
+      if (myCard.eff !== 'duel') myDmg += opAtk;
+    }
+    // Feint: applies next turn (obscure)
+    if (myCard.eff === 'obscure_1') m.obscureUntil = m.turn + 1;
+    mySummary = (myCard.cat === 'special' ? `${myCard.name}: ` : '') + (myDmg > 0 ? `Took ${myDmg}.` : myDmg < 0 ? `Healed.` : '');
+  }
+  // Twin spear: extra strike
+  if (myCard.eff === 'twin' && opCard.cat === 'shield') {
+    const extra = Math.max(myAtk - opCard.def, 0);
+    opDmg += extra;
+  }
+  if (opCard.eff === 'twin' && myCard.cat === 'shield') {
+    const extra = Math.max(opAtk - myCard.def, 0);
+    myDmg += extra;
+  }
+
+  // Apply damage
+  m.myHp = Math.max(0, Math.min(STARTING_HP, m.myHp - myDmg));
+  m.opHp = Math.max(0, Math.min(STARTING_HP, m.opHp - opDmg));
+
+  // Visual + sound feedback
+  $('clash-text').textContent = '⚔ CLASH';
+  $('clash-detail').textContent = `${myCard.name}  vs  ${opCard.name}`;
+  // SFX by category
+  if (myCard.cat === 'spear' || opCard.cat === 'spear') SFX.spear();
+  if (myCard.cat === 'shield' || opCard.cat === 'shield') setTimeout(SFX.shield, 150);
+  if (myCard.cat === 'special' || opCard.cat === 'special') setTimeout(SFX.special, 100);
+  if (myDmg > 0) {
+    setTimeout(() => $('duelist-me').classList.add('hit'), 350);
+    setTimeout(SFX.hit, 400);
+  }
+  if (opDmg > 0) {
+    setTimeout(() => $('duelist-op').classList.add('hit'), 350);
+    setTimeout(SFX.hit, 450);
+  }
+  if (myDmg < 0) setTimeout(SFX.heal, 200);
+
+  // Persist tower shield trigger
+  if (myCard.eff === 'persist') m.persistShield = 1;
+  // Long spear next-turn def penalty
+  if (myCard.eff === 'self_def_-1') m.selfDefMod = -1; else m.selfDefMod = 0;
+
+  // Log entry
+  m.log.push({
+    turn: m.turn,
+    myCard: myCard.name, myCardCat: myCard.cat,
+    opCard: opCard.name, opCardCat: opCard.cat,
+    summary: `${myDmg>0?'-'+myDmg+' you ':''}${opDmg>0?'-'+opDmg+' op ':''}${myDmg===0&&opDmg===0?'no damage':''}`,
+  });
+
+  // Announce
+  setTimeout(() => {
+    let sayParts = [`${myCard.name} versus ${opCard.name}.`];
+    if (myDmg > 0) sayParts.push(`You take ${myDmg}.`);
+    if (opDmg > 0) sayParts.push(`Opponent takes ${opDmg}.`);
+    if (myDmg < 0) sayParts.push(`You heal ${-myDmg}.`);
+    if (myDmg === 0 && opDmg === 0) sayParts.push(`No damage.`);
+    sayParts.push(`Your HP ${m.myHp}, opponent ${m.opHp}.`);
+    speak(sayParts.join(' '));
+  }, 300);
+
+  // After clash animation, advance turn or end game
+  setTimeout(() => {
+    if (m.myHp <= 0 || m.opHp <= 0 || m.turn >= MAX_TURNS) {
+      endMatch();
+    } else {
+      nextTurn();
+    }
+  }, 1900);
+
+  renderMatch();
+}
+
+function nextTurn() {
+  const m = state.match; if (!m) return;
+  m.turn += 1;
+  m.phase = 'PLANNING';
+  m.myCommit = null;
+  m.opCommit = null;
+  // Discard played cards (we don't reuse them in v0.1 — just rebuild from deck if hand low)
+  if (m.myHand.length > 0) {
+    const playedIdx = m.myFocus;
+    if (playedIdx >= 0 && playedIdx < m.myHand.length) {
+      m.myDiscard.push(m.myHand.splice(playedIdx, 1)[0]);
+    }
+  }
+  if (m.opHand.length > 0) {
+    const idx = m.opHand.indexOf(m.opCommit);
+    if (idx >= 0) m.opDiscard.push(m.opHand.splice(idx, 1)[0]);
+    else m.opDiscard.push(m.opHand.shift());
+  }
+  // Draw 1 (or fatigue if deck empty)
+  if (m.myDeck.length === 0) {
+    m.myHp = Math.max(0, m.myHp - 1);
+    speak('Deck empty. Fatigue damage 1.');
+  } else if (m.myHand.length < HAND_MAX) {
+    m.myHand.push(m.myDeck.shift());
+  }
+  if (m.opDeck.length === 0) m.opHp = Math.max(0, m.opHp - 1);
+  else if (m.opHand.length < HAND_MAX) m.opHand.push(m.opDeck.shift());
+
+  // Bound focus
+  m.myFocus = Math.max(0, Math.min(m.myFocus, m.myHand.length - 1));
+  SFX.turnBell();
+  speak(`Turn ${m.turn}. Your HP ${m.myHp}, opponent ${m.opHp}.`);
+  // Check for game over post-fatigue
+  if (m.myHp <= 0 || m.opHp <= 0) { endMatch(); return; }
+  renderMatch();
+  startPlanningTimer();
+}
+
+function endMatch() {
+  clearPlanningTimer();
+  const m = state.match;
+  m.phase = 'OVER';
+  const winner = m.myHp > m.opHp ? 'win' : m.myHp < m.opHp ? 'lose' : 'draw';
+  $('result-title').className = `result-title ${winner}`;
+  $('result-title').textContent = winner === 'win' ? 'VICTORY' : winner === 'lose' ? 'DEFEAT' : 'DRAW';
+  $('result-stats').textContent = `HP ${m.myHp} vs ${m.opHp} · ${m.turn} turns`;
+  $('result-msg').textContent = winner === 'win' ? 'You outdueled the bot.' : winner === 'lose' ? 'The bot got the better of you.' : 'A perfectly even match.';
+  if (winner === 'win') SFX.win();
+  else if (winner === 'lose') SFX.lose();
+  else SFX.draw();
+  speak(winner === 'win' ? `Victory. Final HP ${m.myHp} versus ${m.opHp}.` : winner === 'lose' ? `Defeat. The bot wins.` : `Draw.`);
+  $('overlay-game-over').classList.add('open');
+}
+
+// ============================================================
+// DOT PAD RENDERING — 3 zones (3/4/3 rows × 30 cols = 300 cells)
+// ============================================================
+const DP_W = 30, DP_H = 10;
+function pushDotpad() {
+  if (!state.dotpadConnected || !window.DotPad || !state.match) return;
+  try {
+    const cells = new Uint8Array(DP_W * DP_H);
+    renderDpZones(cells);
+    const hex = bytesToHex(cells);
+    window.DotPad.sdk.displayGraphicData(hex);
+    // Text line: HP/turn
+    const m = state.match;
+    const text = `MY:${String(m.myHp).padStart(2,'0')} T:${String(m.turn).padStart(2,'0')} OP:${String(m.opHp).padStart(2,'0')}`;
+    try { window.DotPad.sdk.displayTextData(text); } catch(e){}
+  } catch(e) { console.warn('[dotpad] render failed:', e); }
+}
+function bytesToHex(bytes) {
+  let s = '';
+  for (let i = 0; i < bytes.length; i++) s += bytes[i].toString(16).padStart(2, '0').toUpperCase();
+  return s;
+}
+function renderDpZones(cells) {
+  const m = state.match;
+  // Zone 1 (rows 0-2): opponent committed card hint
+  drawOpZone(cells, m);
+  // Zone 2 (rows 3-6): clash area
+  drawClashZone(cells, m);
+  // Zone 3 (rows 7-9): my focused card
+  drawMyZone(cells, m);
+}
+function setCell(cells, c, r, v) {
+  if (c < 0 || c >= DP_W || r < 0 || r >= DP_H) return;
+  cells[r * DP_W + c] |= v & 0xFF;
+}
+function drawOpZone(cells, m) {
+  // 3 rows × 30 cols, centered rectangle frame
+  const rTop = 0, rBot = 2, cLeft = 8, cRight = 21;
+  // Top edge (dots 1+4)
+  for (let c = cLeft; c <= cRight; c++) setCell(cells, c, rTop, 0x09);
+  // Bottom edge (dots 7+8)
+  for (let c = cLeft; c <= cRight; c++) setCell(cells, c, rBot, 0xC0);
+  // Side edges (dots 1+2+3+7)
+  for (let r = rTop; r <= rBot; r++) {
+    setCell(cells, cLeft, r, 0x47);
+    setCell(cells, cRight, r, 0xB8);
+  }
+  // Category hint in center if revealed
+  if (m.opCommit && m.phase !== 'PLANNING' && m.phase !== 'WAIT') {
+    const cat = CARDS[m.opCommit].cat;
+    // 4 cells wide centerline at row 1
+    const midC = Math.floor((cLeft + cRight) / 2);
+    if (cat === 'spear') {
+      // vertical line (dots 2+5 stacked) — represented as fills in middle cells
+      for (let r = rTop; r <= rBot; r++) setCell(cells, midC, r, 0xFF);
+    } else if (cat === 'shield') {
+      // horizontal line — fill row 1 middle
+      for (let c = midC - 2; c <= midC + 2; c++) setCell(cells, c, 1, 0xFF);
+    } else if (cat === 'special') {
+      // small blob at center
+      for (let r = 0; r <= 2; r++) for (let c = midC - 1; c <= midC + 1; c++) setCell(cells, c, r, 0xFF);
+    }
+  }
+}
+function drawClashZone(cells, m) {
+  // Rows 3-6, animate on CLASH phase
+  if (m.phase === 'CLASH' || m.phase === 'WAIT') {
+    // Simple cross-bar animation: just fill row 4 and 5 with sparse pattern
+    for (let c = 6; c <= 23; c += 3) {
+      setCell(cells, c, 4, 0x09);
+      setCell(cells, c, 5, 0xC0);
+    }
+    if (m.phase === 'CLASH') {
+      // Add a center impact mark
+      const blink = ((state._blinkPhase || 0) % 2) === 0;
+      if (blink) {
+        for (let r = 4; r <= 5; r++) for (let c = 13; c <= 16; c++) setCell(cells, c, r, 0xFF);
+      }
+    }
+  }
+}
+function drawMyZone(cells, m) {
+  // Rows 7-9, my currently-focused card BIG symbol
+  if (!m.myHand.length) return;
+  const card = CARDS[m.myHand[m.myFocus]];
+  const cat = card.cat;
+  // Frame
+  const rTop = 7, rBot = 9, cLeft = 8, cRight = 21;
+  for (let c = cLeft; c <= cRight; c++) {
+    setCell(cells, c, rTop, 0x09);
+    setCell(cells, c, rBot, 0xC0);
+  }
+  for (let r = rTop; r <= rBot; r++) {
+    setCell(cells, cLeft, r, 0x47);
+    setCell(cells, cRight, r, 0xB8);
+  }
+  // Symbol
+  const midC = Math.floor((cLeft + cRight) / 2);
+  if (cat === 'spear') {
+    // Triangle pointing up — fill cells in pyramid
+    setCell(cells, midC, 7, 0xFF);
+    setCell(cells, midC - 1, 8, 0xFF); setCell(cells, midC, 8, 0xFF); setCell(cells, midC + 1, 8, 0xFF);
+    for (let c = midC - 2; c <= midC + 2; c++) setCell(cells, c, 9, 0xFF);
+  } else if (cat === 'shield') {
+    // Filled square at center
+    for (let r = 7; r <= 9; r++) for (let c = midC - 2; c <= midC + 2; c++) setCell(cells, c, r, 0xFF);
+  } else {
+    // Special: circle-like blob (corners off)
+    for (let r = 7; r <= 9; r++) for (let c = midC - 2; c <= midC + 2; c++) setCell(cells, c, r, 0xFF);
+    setCell(cells, midC - 2, 7, 0); setCell(cells, midC + 2, 7, 0);
+    setCell(cells, midC - 2, 9, 0); setCell(cells, midC + 2, 9, 0);
+  }
+}
+
+// ============================================================
+// DOT PAD CONNECTION
+// ============================================================
+function dotpadAvailable() { return !!window.DotPad && !!window.DotPad.sdk; }
+
+async function connectBle() {
+  if (!dotpadAvailable()) { toast('Dot Pad SDK not loaded'); return; }
+  try {
+    window.DotPad.sdk.setCallBack(onDotpadMessage, onDotpadKey);
+    const device = await window.DotPad.scanner.startBleScan();
+    if (!device) return;
+    state.dotpadName = device.name || 'Dot Pad';
+    const dot = await window.DotPad.sdk.connectBleDevice(device);
+    if (!dot) throw new Error('connectBleDevice returned null');
+    state.dotpadDevice = dot;
+    closePopup();
+  } catch(e) {
+    console.warn('[ble] failed:', e);
+    toast('Connection failed: ' + (e.message || e));
+  }
+}
+async function connectUsb() {
+  if (!dotpadAvailable()) { toast('Dot Pad SDK not loaded'); return; }
+  try {
+    window.DotPad.sdk.setCallBack(onDotpadMessage, onDotpadKey);
+    const port = await window.DotPad.scanner.startUsbScan();
+    if (!port) return;
+    state.dotpadName = 'USB Dot Pad';
+    const dot = await window.DotPad.sdk.connectUsbDevice(port);
+    if (!dot) throw new Error('connectUsbDevice returned null');
+    state.dotpadDevice = dot;
+    closePopup();
+  } catch(e) {
+    console.warn('[usb] failed:', e);
+    toast('Connection failed: ' + (e.message || e));
+  }
+}
+function disconnectDot() {
+  if (!dotpadAvailable()) return;
+  try { window.DotPad.sdk.disconnect(state.dotpadDevice); } catch(e){}
+  state.dotpadConnected = false; state.dotpadDevice = null; state.dotpadName = '';
+  updateDotpadStatus();
+}
+function onDotpadMessage(device, code, msg) {
+  if (!window.DotPad) return;
+  const DC = window.DotPad.DataCodes;
+  if (code === DC.Connected) {
+    state.dotpadConnected = true;
+    state.dotpadDevice = device;
+    state.dotpadName = device.connectDevice?.name || state.dotpadName || 'Dot Pad';
+    updateDotpadStatus();
+    toast('Dot Pad connected: ' + state.dotpadName);
+    setTimeout(pushDotpad, 300);
+  } else if (code === DC.Disconnected) {
+    state.dotpadConnected = false; state.dotpadDevice = null;
+    updateDotpadStatus();
+    toast('Dot Pad disconnected');
+  }
+}
+function onDotpadKey(device, keyCode, msg) {
+  if (!window.DotPad) return;
+  const KC = window.DotPad.KeyCodes;
+  // Splash: F3 to start
+  if (state.screen === 'splash' && keyCode === KC.KeyFunction3) { $('btn-splash-start')?.click(); return; }
+  // Lobby
+  if (state.screen === 'lobby') {
+    if (keyCode === KC.KeyFunction3) {
+      const startBot = $('btn-start-bot'); if (startBot) startBot.click();
+      else document.querySelector('.mode-card[data-mode="bot"]')?.click();
+    }
+    return;
+  }
+  // Match
+  if (state.screen !== 'match' || !state.match) return;
+  switch (keyCode) {
+    case KC.PanningLeft:  moveFocus(-1); break;
+    case KC.PanningRight: moveFocus(1); break;
+    case KC.KeyFunction1: announceBriefing(); break;
+    case KC.KeyFunction2: announceCardFull(); break;
+    case KC.KeyFunction3: commitMyCard(); break;
+    case KC.KeyFunction4: toast('Cancel — focus mode'); break;
+    case KC.KeyFunction14: announceHandList(); break;
+    case KC.KeyFunction12: announceBriefing(); break;
+    case KC.PanningAll:    if (state.lastSpeech) speak(state.lastSpeech); break;
+  }
+}
+function updateDotpadStatus() {
+  const btn = $('btn-dotpad');
+  if (!btn) return;
+  if (state.dotpadConnected) {
+    btn.classList.add('connected');
+    btn.textContent = '● PAD';
+    $('dpd-disc').hidden = false;
+  } else {
+    btn.classList.remove('connected');
+    btn.textContent = 'PAD';
+    $('dpd-disc').hidden = true;
+  }
+}
+function openPopup() { $('dotpad-popup').classList.add('open'); }
+function closePopup() { $('dotpad-popup').classList.remove('open'); }
+
+// ============================================================
+// KEYBOARD MAPPING (for testing without Dot Pad)
+// ============================================================
+document.addEventListener('keydown', (e) => {
+  // Ignore when typing in inputs
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  const k = e.key;
+  if (state.screen === 'splash') {
+    if (k === 'Enter' || k === ' ') { $('btn-splash-start')?.click(); e.preventDefault(); }
+    return;
+  }
+  if (state.screen === 'lobby') {
+    if (k === 'Enter') { document.querySelector('.mode-card[data-mode="bot"]')?.click(); e.preventDefault(); }
+    return;
+  }
+  if (state.screen !== 'match') return;
+  if (k === 'ArrowLeft') { moveFocus(-1); e.preventDefault(); }
+  else if (k === 'ArrowRight') { moveFocus(1); e.preventDefault(); }
+  else if (k === 'F1' || k === '1') { announceBriefing(); e.preventDefault(); }
+  else if (k === 'F2' || k === '2') { announceCardFull(); e.preventDefault(); }
+  else if (k === 'F3' || k === '3' || k === 'Enter') { commitMyCard(); e.preventDefault(); }
+  else if (k === 'F4' || k === '4' || k === 'Escape') { toast('Cancel'); e.preventDefault(); }
+});
+
+// Blink timer for clash visual
+setInterval(() => {
+  state._blinkPhase = (state._blinkPhase + 1) % 2;
+  if (state.dotpadConnected && state.match && state.match.phase === 'CLASH') pushDotpad();
+}, 350);
+
+// Push to Dot Pad whenever match state changes (debounced via render)
+const _origRenderMatch = renderMatch;
+renderMatch = function() {
+  _origRenderMatch.apply(this, arguments);
+  setTimeout(pushDotpad, 50);
+};
+
+// ============================================================
+// INIT
+// ============================================================
+function init() {
+  loadSettings();
+  // Header buttons
+  $('btn-dotpad').addEventListener('click', openPopup);
+  $('dpd-ble').addEventListener('click', connectBle);
+  $('dpd-usb').addEventListener('click', connectUsb);
+  $('dpd-disc').addEventListener('click', () => { disconnectDot(); closePopup(); });
+  document.addEventListener('click', (e) => {
+    const popup = $('dotpad-popup');
+    if (popup.classList.contains('open') && !popup.contains(e.target) && e.target.id !== 'btn-dotpad') {
+      closePopup();
+    }
+  });
+  $('btn-voice').addEventListener('click', () => {
+    state.ttsOn = !state.ttsOn;
+    if (!state.ttsOn) stopSpeak();
+    $('btn-voice').classList.toggle('active', state.ttsOn);
+    $('btn-voice').setAttribute('aria-pressed', String(state.ttsOn));
+    saveSettings();
+  });
+  $('btn-sfx').addEventListener('click', () => {
+    state.sfxOn = !state.sfxOn;
+    $('btn-sfx').classList.toggle('active', state.sfxOn);
+    $('btn-sfx').setAttribute('aria-pressed', String(state.sfxOn));
+    saveSettings();
+  });
+  $('btn-home').addEventListener('click', () => {
+    clearPlanningTimer();
+    if (state.screen === 'match' && state.match) {
+      // confirm
+      $('confirm-msg').textContent = 'Quit current duel and return to lobby?';
+      $('overlay-confirm').classList.add('open');
+      $('confirm-yes').onclick = () => {
+        $('overlay-confirm').classList.remove('open');
+        state.match = null;
+        state.screen = 'lobby';
+        render();
+      };
+      $('confirm-no').onclick = () => $('overlay-confirm').classList.remove('open');
+    } else {
+      state.screen = 'lobby';
+      render();
+    }
+  });
+  $('result-rematch').addEventListener('click', () => {
+    $('overlay-game-over').classList.remove('open');
+    startMatch({ mode: state.match?.mode || 'bot' });
+  });
+  $('result-lobby').addEventListener('click', () => {
+    $('overlay-game-over').classList.remove('open');
+    state.match = null;
+    state.screen = 'lobby';
+    render();
+  });
+  // Render first screen
+  render();
+}
+init();
+</script>
+</body>
+</html>
