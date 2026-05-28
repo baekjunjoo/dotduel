@@ -1779,9 +1779,14 @@ function moveFocus(dir) {
   const next = Math.max(0, Math.min(m.myHand.length - 1, m.myFocus + dir));
   if (next === m.myFocus) { SFX.warn(); return; }
   m.myFocus = next;
+  // In same-device mode, also save focus to the active player's sub-state
+  // so renderDpZonesForPlayer reads the up-to-date focus index
+  if (m.mode === 'same-device') savePlayerView(m.activePlayer);
   SFX.focus();
   render();
   announceFocus();
+  // Push Dot Pad immediately so the new card image appears on the pad
+  setTimeout(pushDotpad, 30);
 }
 function announceFocus() {
   const m = state.match; if (!m) return;
@@ -1794,11 +1799,18 @@ function announceCardFull() {
   const cid = m.myHand[m.myFocus];
   const c = CARDS[cid];
   speak(`${c.name}. ${c.desc}`);
-  // Also push the full card pixel-art to the Dot Pad as a tactile image
-  // for ~4 seconds, so user can "feel" the card silhouette while listening.
+  // In DUAL-pad same-device mode, the active player's pad already shows their
+  // focused card full-screen continuously — no need to push a temporary image.
+  // In single-pad / bot / friend modes, briefly push the full card image so
+  // the user can feel the card silhouette while listening.
   if (state.dotpadConnected && IMG_OK[`card_${cid}`]) {
-    pushDotpadImage(`card_${cid}`, { duration: 4000, threshold: 110 });
-    toast('Card on Dot Pad (4s)', 1500);
+    const dualPad = m.mode === 'same-device' && state.dotpadDevices.length >= 2;
+    if (!dualPad) {
+      pushDotpadImage(`card_${cid}`, { duration: 4000, threshold: 110 });
+      toast('Card on Dot Pad (4s)', 1500);
+    } else {
+      toast('Card description spoken', 1200);
+    }
   }
 }
 function announceBriefing() {
@@ -2387,39 +2399,47 @@ function pushDotpadDual() {
   }
 }
 
-// Per-player zone rendering (independent of state.myHand which only holds the
-// currently loaded view). Reads directly from m.p1 / m.p2 sub-states.
+// Per-player zone rendering — dual-pad mode renders the focused/committed
+// card image FULL-SCREEN (30×10 cells = 60×40 pins) on each player's pad
+// so the entire braille graphic area is the card silhouette.
+// During CLASH, both pads show the opponent's card so each player can feel
+// what they were just hit with (or what they blocked).
 function renderDpZonesForPlayer(cells, m, playerNum, isActive) {
   const p = playerNum === 1 ? m.p1 : m.p2;
   const op = playerNum === 1 ? m.p2 : m.p1;
-  // If not this player's turn AND they have not yet committed (or both have
-  // and we're past clash), show a "WAITING" frame on their pad
+  // Inactive player who has not yet committed → WAITING frame
   if (!isActive && !p.commit && (m.phase === 'PLANNING' || m.phase === 'WAIT')) {
     drawWaitFrame(cells);
     return;
   }
-  // Top zone — opponent commit/reveal
-  if (op.commit && (m.phase === 'CLASH' || m.phase === 'OVER')) {
+  // CLASH or OVER: show OPPONENT's card full-screen so each player feels
+  // what they were dealt with this turn
+  if ((m.phase === 'CLASH' || m.phase === 'OVER') && op.commit) {
     const img = IMG[`card_${op.commit}`];
     if (img && IMG_OK[`card_${op.commit}`]) {
-      applyImageCells(cells, img, { cellsW: 14, cellsH: 3, offsetX: 8, offsetY: 0, threshold: 110 });
+      applyImageCells(cells, img, { cellsW: DP_W, cellsH: DP_H, offsetX: 0, offsetY: 0, threshold: 110 });
+      return;
     }
-  } else {
-    drawOpFrame(cells, op.commit ? CARDS[op.commit].cat : null, m.phase === 'WAIT' && !!op.commit);
   }
-  // Bottom zone — my focused card (use actual card image if loaded)
+  // WAIT (this player already committed, waiting for opponent) — show their
+  // own committed card full-screen so they remember what they played
+  if (m.phase === 'WAIT' && p.commit) {
+    const img = IMG[`card_${p.commit}`];
+    if (img && IMG_OK[`card_${p.commit}`]) {
+      applyImageCells(cells, img, { cellsW: DP_W, cellsH: DP_H, offsetX: 0, offsetY: 0, threshold: 110 });
+      return;
+    }
+  }
+  // PLANNING — active player explores their hand. Show focused card full-screen.
   if (p.hand.length) {
     const cid = p.hand[p.focus];
     const img = IMG[`card_${cid}`];
     if (img && IMG_OK[`card_${cid}`]) {
-      applyImageCells(cells, img, { cellsW: 14, cellsH: 3, offsetX: 8, offsetY: 7, threshold: 110 });
-    } else {
-      drawSymbolFrame(cells, CARDS[cid].cat, 'bottom');
+      applyImageCells(cells, img, { cellsW: DP_W, cellsH: DP_H, offsetX: 0, offsetY: 0, threshold: 110 });
+      return;
     }
-  }
-  // Clash zone middle — animation during CLASH
-  if (m.phase === 'CLASH' || m.phase === 'WAIT') {
-    drawClashMiddle(cells, m.phase === 'CLASH');
+    // Image not loaded — fall back to large center symbol
+    drawSymbolFrame(cells, CARDS[cid].cat, 'bottom');
   }
 }
 function drawWaitFrame(cells) {
@@ -2497,9 +2517,22 @@ function drawClashMiddle(cells, isClash) {
 
 // Push an image to the FULL Dot Pad graphic area (30×10 cells = 60×40 pins).
 // opts.duration = ms (default 4000); fullPad: true persists until lobby return.
+// opts.device = target a single DotDevice (otherwise broadcasts to all pads).
 function pushDotpadImage(key, opts = {}) {
   if (!state.dotpadConnected || !window.DotPad || !IMG_OK[key]) return;
   const duration = opts.fullPad ? 1e9 : (opts.duration ?? 4000);
+  // If targeting a specific device, render and send directly without touching
+  // the global dpImageMode flag (so other pads keep their per-player view)
+  if (opts.device) {
+    try {
+      const cells = new Uint8Array(DP_W * DP_H);
+      applyImageCells(cells, IMG[key], {
+        cellsW: DP_W, cellsH: DP_H, offsetX: 0, offsetY: 0, threshold: opts.threshold ?? 110,
+      });
+      window.DotPad.sdk.displayGraphicData(bytesToHex(cells), opts.device);
+    } catch(e) { console.warn('[pushImage device] failed', e); }
+    return;
+  }
   state.dpImageMode = {
     key,
     until: Date.now() + duration,
