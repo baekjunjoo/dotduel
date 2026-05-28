@@ -721,6 +721,20 @@
   }
   #fr-join-input:focus { outline: none; border-color: var(--accent); }
 
+  /* Same-device handoff */
+  .handoff-card { text-align: center; max-width: 460px; }
+  .handoff-icon {
+    font-size: 64px;
+    margin-bottom: 8px;
+    animation: handoffWave 1.6s ease-in-out infinite;
+  }
+  @keyframes handoffWave {
+    0%, 100% { transform: rotate(-6deg); }
+    50% { transform: rotate(6deg); }
+  }
+  .handoff-card h2 { color: var(--accent); }
+  .handoff-card.p2 h2 { color: var(--gold); }
+
   /* Game over overlay */
   .game-over .result-art {
     width: 100%; max-width: 320px;
@@ -930,10 +944,17 @@
     <h2 id="fr-title">Friend Duel</h2>
     <p id="fr-desc">Share a room code or join with a friend's code. Both players need to keep this tab open.</p>
     <div class="friend-tabs">
-      <button class="action-btn secondary friend-tab active" data-tab="host" type="button">Host</button>
-      <button class="action-btn secondary friend-tab" data-tab="join" type="button">Join</button>
+      <button class="action-btn secondary friend-tab active" data-tab="local" type="button">Same Device</button>
+      <button class="action-btn secondary friend-tab" data-tab="host" type="button">Host Online</button>
+      <button class="action-btn secondary friend-tab" data-tab="join" type="button">Join Online</button>
     </div>
-    <div class="friend-panel" id="fr-host-panel">
+    <div class="friend-panel" id="fr-local-panel">
+      <p class="friend-status">Two players take turns on the same device. Each player picks a card while the other looks away, then both reveal. Perfect for blind co-op play.</p>
+      <div class="actions">
+        <button class="action-btn" id="fr-local-start" type="button">▶ Start Local Duel</button>
+      </div>
+    </div>
+    <div class="friend-panel" id="fr-host-panel" hidden>
       <p class="friend-status" id="fr-host-status">Click below to create a room.</p>
       <div class="friend-code-display" id="fr-host-code" hidden>----</div>
       <div class="actions">
@@ -957,6 +978,18 @@
 <div class="live-region" id="live-region" aria-live="polite" aria-atomic="true"></div>
 <!-- Full-screen impact flash overlay (fires on clash) -->
 <div class="flash-overlay" id="flash-overlay" aria-hidden="true"></div>
+
+<!-- Same-device handoff overlay (between Player 1 and Player 2) -->
+<div class="overlay" id="overlay-handoff" role="dialog" aria-labelledby="ho-title">
+  <div class="overlay-card handoff-card">
+    <div class="handoff-icon">🤝</div>
+    <h2 id="ho-title">Pass the device to Player 2</h2>
+    <p id="ho-body">Player 1 has committed their card. Hand the device to Player 2 (or switch seats) and press the button when ready.</p>
+    <div class="actions">
+      <button class="action-btn" id="ho-ready" type="button">▶ I'm Player 2, Ready (F3)</button>
+    </div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -1625,7 +1658,7 @@ function renderMatch() {
       <div class="stats-row">
         <div class="stats-side">
           <div>
-            <div class="player-label">YOU</div>
+            <div class="player-label">${m.mode === 'same-device' ? 'P' + m.activePlayer : 'YOU'}</div>
             <div class="hp-hearts" id="my-hearts" aria-label="Your HP ${m.myHp}">${myHearts}</div>
           </div>
         </div>
@@ -1637,7 +1670,7 @@ function renderMatch() {
         </div>
         <div class="stats-side right">
           <div style="text-align:right;">
-            <div class="player-label">${m.mode === 'friend' ? 'FRIEND' : 'BOT'}</div>
+            <div class="player-label">${m.mode === 'friend' ? 'FRIEND' : m.mode === 'same-device' ? ('P' + (m.activePlayer === 1 ? 2 : 1)) : 'BOT'}</div>
             <div class="hp-hearts" id="op-hearts" aria-label="Opponent HP ${m.opHp}">${opHearts}</div>
           </div>
         </div>
@@ -1654,11 +1687,11 @@ function renderMatch() {
           </div>
           <div class="arena-ground">
             <div class="duelist" id="duelist-me" aria-label="You — fox spearmaster">${IMG_OK.fox ? `<img src="${IMG.fox.src}" alt="" />` : '🦊'}
-              <span class="duelist-name">YOU</span>
+              <span class="duelist-name">${m.mode === 'same-device' ? 'PLAYER ' + m.activePlayer : 'YOU'}</span>
             </div>
             <div class="arena-vs">VS</div>
             <div class="duelist" id="duelist-op" aria-label="Opponent — bear shieldwarden">${IMG_OK.bear ? `<img src="${IMG.bear.src}" alt="" />` : '🐻'}
-              <span class="duelist-name">${m.mode === 'friend' ? 'FRIEND' : 'BOT'}</span>
+              <span class="duelist-name">${m.mode === 'friend' ? 'FRIEND' : m.mode === 'same-device' ? 'PLAYER ' + (m.activePlayer === 1 ? 2 : 1) : 'BOT'}</span>
             </div>
           </div>
         </div>
@@ -1812,6 +1845,39 @@ function commitMyCard() {
           if (state.match && state.match.phase === 'WAIT') resolveClash();
         }, 900);
       }, 200);
+    }
+    return;
+  }
+
+  if (m.mode === 'same-device') {
+    // Save current player's commit, hand off
+    savePlayerView(m.activePlayer);
+    if (m.activePlayer === 1) {
+      // P1 done → handoff to P2
+      hideCommitCard('me');
+      hideThinking('op');
+      setTimeout(() => showHandoff(2), 300);
+    } else {
+      // P2 done → both have committed, reveal+resolve from P1's perspective
+      hideCommitCard('me');
+      hideThinking('op');
+      // Load P1's perspective so myCommit = P1's, opCommit = P2's
+      loadPlayerView(1);
+      const p1Card = CARDS[m.myCommit];
+      const p2Card = CARDS[m.opCommit];
+      // Re-render in P1's view, then show both committed cards
+      renderMatch();
+      setTimeout(() => {
+        showCommitCard('me', m.myCommit);
+        showCommitCard('op', m.opCommit);
+        $('clash-text').textContent = 'Cards revealed!';
+        $('clash-detail').textContent = `P1 ${p1Card.name}  vs  P2 ${p2Card.name}`;
+        SFX.special();
+        speak(`Player 1 plays ${p1Card.name}. Player 2 plays ${p2Card.name}.`);
+        setTimeout(() => {
+          if (state.match && state.match.phase === 'WAIT') resolveClash();
+        }, 1000);
+      }, 100);
     }
     return;
   }
@@ -2116,6 +2182,11 @@ function resolveClash() {
     }
   }, 2200);
 
+  // Same-device: write resolved HP back to both player sub-states
+  if (m.mode === 'same-device') {
+    m.p1.hp = m.myHp;
+    m.p2.hp = m.opHp;
+  }
   // Update only the HP/turn/log display in-place — full renderMatch would
   // wipe the commit-card DOM nodes we just appended via JS.
   updateClashStats();
@@ -2135,9 +2206,35 @@ function nextTurn() {
   const m = state.match; if (!m) return;
   m.turn += 1;
   m.phase = 'PLANNING';
+
+  if (m.mode === 'same-device') {
+    // Apply discard + draw to both player sub-states, then return to P1
+    const players = [m.p1, m.p2];
+    for (const p of players) {
+      if (p.commit) {
+        const idx = p.hand.indexOf(p.commit);
+        if (idx >= 0) p.discard.push(p.hand.splice(idx, 1)[0]);
+        p.commit = null;
+      }
+      if (p.deck.length === 0) {
+        p.hp = Math.max(0, p.hp - 1);
+      } else if (p.hand.length < HAND_MAX) {
+        p.hand.push(p.deck.shift());
+      }
+      p.focus = Math.max(0, Math.min(p.focus, p.hand.length - 1));
+    }
+    if (m.p1.hp <= 0 || m.p2.hp <= 0) { endMatch(); return; }
+    loadPlayerView(1);
+    SFX.turnBell();
+    speak(`Turn ${m.turn}. Player 1, choose your card.`);
+    renderMatch();
+    startPlanningTimer();
+    return;
+  }
+
   m.myCommit = null;
   m.opCommit = null;
-  // Discard played cards (we don't reuse them in v0.1 — just rebuild from deck if hand low)
+  // Discard played cards
   if (m.myHand.length > 0) {
     const playedIdx = m.myFocus;
     if (playedIdx >= 0 && playedIdx < m.myHand.length) {
@@ -2159,11 +2256,9 @@ function nextTurn() {
   if (m.opDeck.length === 0) m.opHp = Math.max(0, m.opHp - 1);
   else if (m.opHand.length < HAND_MAX) m.opHand.push(m.opDeck.shift());
 
-  // Bound focus
   m.myFocus = Math.max(0, Math.min(m.myFocus, m.myHand.length - 1));
   SFX.turnBell();
   speak(`Turn ${m.turn}. Your HP ${m.myHp}, opponent ${m.opHp}.`);
-  // Check for game over post-fatigue
   if (m.myHp <= 0 || m.opHp <= 0) { endMatch(); return; }
   renderMatch();
   startPlanningTimer();
@@ -2174,11 +2269,22 @@ function endMatch() {
   stopBGM();
   const m = state.match;
   m.phase = 'OVER';
-  const winner = m.myHp > m.opHp ? 'win' : m.myHp < m.opHp ? 'lose' : 'draw';
+  let winner, msg;
+  if (m.mode === 'same-device') {
+    if (m.p1.hp > m.p2.hp) { winner = 'win'; msg = 'Player 1 wins!'; }
+    else if (m.p1.hp < m.p2.hp) { winner = 'lose'; msg = 'Player 2 wins!'; }
+    else { winner = 'draw'; msg = 'A perfectly even match.'; }
+    $('result-title').textContent = winner === 'draw' ? 'DRAW' : (winner === 'win' ? 'P1 VICTORY' : 'P2 VICTORY');
+    $('result-stats').textContent = `P1: HP ${m.p1.hp}  ·  P2: HP ${m.p2.hp}  ·  ${m.turn} turns`;
+  } else {
+    winner = m.myHp > m.opHp ? 'win' : m.myHp < m.opHp ? 'lose' : 'draw';
+    $('result-title').textContent = winner === 'win' ? 'VICTORY' : winner === 'lose' ? 'DEFEAT' : 'DRAW';
+    $('result-stats').textContent = `HP ${m.myHp} vs ${m.opHp} · ${m.turn} turns`;
+    const oppName = m.mode === 'friend' ? 'friend' : 'bot';
+    msg = winner === 'win' ? `You outdueled the ${oppName}.` : winner === 'lose' ? `The ${oppName} got the better of you.` : 'A perfectly even match.';
+  }
   $('result-title').className = `result-title ${winner}`;
-  $('result-title').textContent = winner === 'win' ? 'VICTORY' : winner === 'lose' ? 'DEFEAT' : 'DRAW';
-  $('result-stats').textContent = `HP ${m.myHp} vs ${m.opHp} · ${m.turn} turns`;
-  $('result-msg').textContent = winner === 'win' ? 'You outdueled the bot.' : winner === 'lose' ? 'The bot got the better of you.' : 'A perfectly even match.';
+  $('result-msg').textContent = msg;
   // Result art (victory / defeat pixel illustration)
   const artKey = winner === 'win' ? 'victory' : winner === 'lose' ? 'defeat' : 'arena';
   $('result-art').innerHTML = IMG_OK[artKey] ? `<img src="${IMG[artKey].src}" alt="" />` : '';
@@ -2187,7 +2293,16 @@ function endMatch() {
   if (winner === 'win') SFX.win();
   else if (winner === 'lose') SFX.lose();
   else SFX.draw();
-  speak(winner === 'win' ? `Victory. Final HP ${m.myHp} versus ${m.opHp}.` : winner === 'lose' ? `Defeat. The bot wins.` : `Draw.`);
+  let speakLine;
+  if (m.mode === 'same-device') {
+    if (winner === 'draw') speakLine = `Draw. Final HP. Player 1, ${m.p1.hp}. Player 2, ${m.p2.hp}.`;
+    else speakLine = `Player ${winner === 'win' ? 1 : 2} wins! Final HP. Player 1, ${m.p1.hp}. Player 2, ${m.p2.hp}.`;
+  } else {
+    const opp = m.mode === 'friend' ? 'friend' : 'bot';
+    speakLine = winner === 'win' ? `Victory. Final HP ${m.myHp} versus ${m.opHp}.` :
+                winner === 'lose' ? `Defeat. The ${opp} wins.` : `Draw.`;
+  }
+  speak(speakLine);
   $('overlay-game-over').classList.add('open');
 }
 
@@ -2466,6 +2581,17 @@ document.addEventListener('keydown', (e) => {
   // Ignore when typing in inputs
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
   const k = e.key;
+  // Handoff overlay — F3/Enter to continue
+  if ($('overlay-handoff')?.classList.contains('open')) {
+    if (k === 'F3' || k === '3' || k === 'Enter' || k === ' ') { $('ho-ready').click(); e.preventDefault(); }
+    return;
+  }
+  // Tutorial overlay
+  if ($('overlay-tutorial')?.classList.contains('open')) {
+    if (k === 'F3' || k === '3' || k === 'Enter' || k === ' ') { $('tut-next').click(); e.preventDefault(); }
+    if (k === 'Escape' || k === 'F4' || k === '4') { $('tut-skip').click(); e.preventDefault(); }
+    return;
+  }
   if (state.screen === 'splash') {
     if (k === 'Enter' || k === ' ') { $('btn-splash-start')?.click(); e.preventDefault(); }
     return;
@@ -2542,6 +2668,81 @@ function nextTutorialStep() {
 function closeTutorial() {
   $('overlay-tutorial').classList.remove('open');
   stopSpeak();
+}
+
+// ============================================================
+// SAME-DEVICE FRIEND DUEL — two players take turns on one device
+// State holds two independent player views (p1, p2). At each player's
+// turn, their view is loaded into the existing my* fields so the rest of
+// the render/commit code stays the same. After both commit, resolveClash
+// runs with myCommit/opCommit set from the active player's perspective.
+// ============================================================
+function startLocalDuel() {
+  const p1Deck = shuffle(DECK_DEFAULT);
+  const p2Deck = shuffle(DECK_DEFAULT);
+  const matchObj = {
+    mode: 'same-device',
+    activePlayer: 1,
+    turn: 1,
+    phase: 'PLANNING',
+    timer: PLANNING_TIMER_DEFAULT,
+    log: [],
+    obscureUntil: 0,
+    selfDefMod: 0,
+    persistShield: 0,
+    p1: { hp: STARTING_HP, hand: p1Deck.splice(0, HAND_START), deck: p1Deck, discard: [], focus: 0, commit: null, selfDefMod: 0, persistShield: 0 },
+    p2: { hp: STARTING_HP, hand: p2Deck.splice(0, HAND_START), deck: p2Deck, discard: [], focus: 0, commit: null, selfDefMod: 0, persistShield: 0 },
+  };
+  state.match = matchObj;
+  loadPlayerView(1);
+  state.screen = 'match';
+  render();
+  SFX.turnBell();
+  startBGM();
+  speak(`Local duel. Turn 1. Player 1, choose your card. Player 2, please look away.`);
+  startPlanningTimer();
+}
+function loadPlayerView(num) {
+  const m = state.match;
+  const p = num === 1 ? m.p1 : m.p2;
+  const o = num === 1 ? m.p2 : m.p1;
+  m.activePlayer = num;
+  m.myHand = p.hand;
+  m.myDeck = p.deck;
+  m.myDiscard = p.discard;
+  m.myFocus = p.focus;
+  m.myHp = p.hp;
+  m.myCommit = p.commit;
+  m.opHp = o.hp;
+  m.opHand = o.hand;
+  m.opDeck = o.deck;
+  m.opDiscard = o.discard;
+  m.opCommit = o.commit;
+  m.selfDefMod = p.selfDefMod || 0;
+  m.persistShield = p.persistShield || 0;
+}
+function savePlayerView(num) {
+  const m = state.match;
+  const p = num === 1 ? m.p1 : m.p2;
+  p.hand = m.myHand;
+  p.deck = m.myDeck;
+  p.discard = m.myDiscard;
+  p.focus = m.myFocus;
+  p.hp = m.myHp;
+  p.commit = m.myCommit;
+  p.selfDefMod = m.selfDefMod || 0;
+  p.persistShield = m.persistShield || 0;
+}
+function showHandoff(toPlayer) {
+  $('overlay-handoff').classList.add('open');
+  const card = document.querySelector('.handoff-card');
+  if (card) card.classList.toggle('p2', toPlayer === 2);
+  $('ho-title').textContent = `Pass the device to Player ${toPlayer}`;
+  $('ho-body').textContent = `Player ${toPlayer === 2 ? 1 : 2} has committed their card. Hand the device to Player ${toPlayer} (or switch seats) and press the button when ready.`;
+  speak(`Player ${toPlayer === 2 ? 1 : 2} done. Pass the device to Player ${toPlayer} and press F3 when ready.`);
+}
+function closeHandoff() {
+  $('overlay-handoff').classList.remove('open');
 }
 
 // ============================================================
@@ -2757,7 +2958,6 @@ async function init() {
   });
   $('result-rematch').addEventListener('click', () => {
     $('overlay-game-over').classList.remove('open');
-    // Friend rematch needs re-handshake; just go back to bot mode for now
     const prevMode = state.match?.mode || 'bot';
     if (prevMode === 'friend') {
       friendCleanup();
@@ -2765,6 +2965,8 @@ async function init() {
       state.screen = 'lobby';
       render();
       toast('Friend rematch — re-create or rejoin a room.');
+    } else if (prevMode === 'same-device') {
+      startLocalDuel();
     } else {
       startMatch({ mode: prevMode });
     }
@@ -2782,6 +2984,23 @@ async function init() {
     e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
   });
   $('fr-close').addEventListener('click', closeFriendOverlay);
+  // Same-device duel
+  $('fr-local-start').addEventListener('click', () => {
+    closeFriendOverlay();
+    startLocalDuel();
+  });
+  // Handoff overlay confirm
+  $('ho-ready').addEventListener('click', () => {
+    closeHandoff();
+    const m = state.match; if (!m || m.mode !== 'same-device') return;
+    // Load P2's view and let them plan
+    loadPlayerView(2);
+    m.phase = 'PLANNING';
+    SFX.commit();
+    speak(`Player 2, choose your card.`);
+    renderMatch();
+    startPlanningTimer();
+  });
   $('result-lobby').addEventListener('click', () => {
     $('overlay-game-over').classList.remove('open');
     stopBGM();
