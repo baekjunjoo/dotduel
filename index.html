@@ -435,7 +435,7 @@
     color: var(--accent);
     transition: transform 0.4s;
     position: relative;
-    filter: drop-shadow(0 8px 12px rgba(0,0,0,0.6));
+    overflow: visible;
   }
   .duelist img {
     width: 100%; height: 100%;
@@ -444,21 +444,28 @@
     image-rendering: pixelated;
     image-rendering: -moz-crisp-edges;
     image-rendering: crisp-edges;
+    filter: drop-shadow(0 6px 8px rgba(0,0,0,0.55));
   }
   .duelist-name {
     position: absolute;
-    top: -6px; left: 50%;
+    top: -22px; left: 50%;
     transform: translateX(-50%);
-    font-size: 14px; font-weight: 900; letter-spacing: 0.16em;
+    display: inline-block;
+    width: auto;
+    height: 18px;
+    box-sizing: content-box;
+    line-height: 18px;
+    font-size: 11px; font-weight: 900;
+    letter-spacing: 0.16em;
     color: var(--fg);
-    background: rgba(10, 8, 6, 0.85);
-    border: 1px solid rgba(255, 122, 69, 0.4);
-    padding: 4px 12px;
-    border-radius: 999px;
-    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    background: rgba(10, 8, 6, 0.92);
+    border: 1px solid rgba(255, 122, 69, 0.55);
+    padding: 0 10px;
+    border-radius: 4px;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.9);
     white-space: nowrap;
-    z-index: 5;
+    z-index: 6;
+    pointer-events: none;
   }
   .duelist-name {
     position: absolute; bottom: -22px;
