@@ -897,25 +897,68 @@ const SFX = {
 // ============================================================
 // IMAGE PRELOAD + DOT PAD CONVERSION
 // ============================================================
-const IMG = {};      // cache of <img> elements by key
+const IMG = {};      // cache of <img> elements by key (post-processed src)
 const IMG_OK = {};   // boolean availability per key
-function preloadImg(key, src) {
+// Sample 4 corners of an image and remove pixels close to the average corner
+// color (with fuzz tolerance). Returns a data URL with transparent bg.
+function autoRemoveBackground(img, fuzz = 38) {
+  const cv = document.createElement('canvas');
+  cv.width = img.width; cv.height = img.height;
+  const ctx = cv.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, cv.width, cv.height);
+  const px = data.data;
+  const W = cv.width, H = cv.height;
+  // 4 corner samples (skip 4px in from each edge to dodge antialiasing)
+  const cs = [[4,4],[W-5,4],[4,H-5],[W-5,H-5]].map(([x,y]) => {
+    const i = (y * W + x) * 4;
+    return [px[i], px[i+1], px[i+2]];
+  });
+  const avg = [0,0,0];
+  cs.forEach(s => { avg[0]+=s[0]; avg[1]+=s[1]; avg[2]+=s[2]; });
+  avg[0] = Math.round(avg[0]/cs.length);
+  avg[1] = Math.round(avg[1]/cs.length);
+  avg[2] = Math.round(avg[2]/cs.length);
+  for (let i = 0; i < px.length; i += 4) {
+    const dr = Math.abs(px[i] - avg[0]);
+    const dg = Math.abs(px[i+1] - avg[1]);
+    const db = Math.abs(px[i+2] - avg[2]);
+    if (dr < fuzz && dg < fuzz && db < fuzz) {
+      px[i+3] = 0;
+    }
+  }
+  ctx.putImageData(data, 0, 0);
+  return cv.toDataURL('image/png');
+}
+function preloadImg(key, src, opts = {}) {
   return new Promise((resolve) => {
     const img = new Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => { IMG[key] = img; IMG_OK[key] = true; resolve(true); };
+    img.onload = () => {
+      if (opts.removeBg) {
+        try {
+          const dataUrl = autoRemoveBackground(img, opts.fuzz ?? 38);
+          const newImg = new Image();
+          newImg.onload = () => { IMG[key] = newImg; IMG_OK[key] = true; resolve(true); };
+          newImg.onerror = () => { IMG[key] = img; IMG_OK[key] = true; resolve(true); };
+          newImg.src = dataUrl;
+          return;
+        } catch(e) { console.warn('[img] removeBg failed for', key, e); }
+      }
+      IMG[key] = img; IMG_OK[key] = true; resolve(true);
+    };
     img.onerror = () => { IMG_OK[key] = false; console.warn('[img] failed:', src); resolve(false); };
     img.src = src;
   });
 }
 function preloadAllImages() {
   return Promise.all([
-    preloadImg('splash', 'assets/splash-hero.png'),
+    preloadImg('splash', 'assets/splash-hero.png', { removeBg: true }),
     preloadImg('arena', 'assets/arena-bg.png'),
-    preloadImg('fox', 'assets/duelist-fox.png'),
-    preloadImg('bear', 'assets/duelist-bear.png'),
-    preloadImg('victory', 'assets/victory.png'),
-    preloadImg('defeat', 'assets/defeat.png'),
+    preloadImg('fox', 'assets/duelist-fox.png', { removeBg: true, fuzz: 42 }),
+    preloadImg('bear', 'assets/duelist-bear.png', { removeBg: true, fuzz: 42 }),
+    preloadImg('victory', 'assets/victory.png', { removeBg: true }),
+    preloadImg('defeat', 'assets/defeat.png', { removeBg: true }),
     preloadImg('matchmaking', 'assets/matchmaking-bg.png'),
     ...CARD_ID_LIST.map(id => preloadImg(`card_${id}`, `assets/cards/${id}.png`)),
   ]);
@@ -1264,11 +1307,11 @@ function renderMatch() {
             <div class="arena-clash-detail" id="clash-detail"></div>
           </div>
           <div class="arena-ground">
-            <div class="duelist" id="duelist-me" aria-label="You — fox spearmaster">${IMG_OK.fox ? `<img src="assets/duelist-fox.png" alt="" />` : '🦊'}
+            <div class="duelist" id="duelist-me" aria-label="You — fox spearmaster">${IMG_OK.fox ? `<img src="${IMG.fox.src}" alt="" />` : '🦊'}
               <span class="duelist-name">YOU</span>
             </div>
             <div class="arena-vs">VS</div>
-            <div class="duelist" id="duelist-op" aria-label="Opponent — bear shieldwarden">${IMG_OK.bear ? `<img src="assets/duelist-bear.png" alt="" />` : '🐻'}
+            <div class="duelist" id="duelist-op" aria-label="Opponent — bear shieldwarden">${IMG_OK.bear ? `<img src="${IMG.bear.src}" alt="" />` : '🐻'}
               <span class="duelist-name">BOT</span>
             </div>
           </div>
@@ -1637,7 +1680,7 @@ function endMatch() {
   $('result-msg').textContent = winner === 'win' ? 'You outdueled the bot.' : winner === 'lose' ? 'The bot got the better of you.' : 'A perfectly even match.';
   // Result art (victory / defeat pixel illustration)
   const artKey = winner === 'win' ? 'victory' : winner === 'lose' ? 'defeat' : 'arena';
-  $('result-art').innerHTML = IMG_OK[artKey] ? `<img src="assets/${artKey === 'arena' ? 'arena-bg' : artKey}.png" alt="" />` : '';
+  $('result-art').innerHTML = IMG_OK[artKey] ? `<img src="${IMG[artKey].src}" alt="" />` : '';
   // Push art to Dot Pad as full tactile image (won't auto-revert, user can lobby out)
   pushDotpadImage(artKey === 'arena' ? 'arena' : artKey, { fullPad: true });
   if (winner === 'win') SFX.win();
