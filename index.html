@@ -949,7 +949,10 @@
       <button class="action-btn secondary friend-tab" data-tab="join" type="button">Join Online</button>
     </div>
     <div class="friend-panel" id="fr-local-panel">
-      <p class="friend-status">Two players take turns on the same device. Each player picks a card while the other looks away, then both reveal. Perfect for blind co-op play.</p>
+      <p class="friend-status" id="fr-local-status">Two players take turns on the same device. Each player picks a card while the other looks away, then both reveal. Perfect for blind co-op play.</p>
+      <p class="friend-status" id="fr-local-dualhint" style="color: var(--ok); font-weight: 700;" hidden>
+        ●● Dual Dot Pads detected — handoff will be automatic, each player uses their own pad.
+      </p>
       <div class="actions">
         <button class="action-btn" id="fr-local-start" type="button">▶ Start Local Duel</button>
       </div>
@@ -1028,6 +1031,7 @@ const state = {
   sfxOn: true,
   dotpadConnected: false,
   dotpadDevice: null,
+  dotpadDevices: [],           // ALL currently-connected DotDevice instances (multi-pad support)
   dotpadName: '',
   difficulty: 'medium',
   match: null,                 // { turn, myHp, opHp, myDeck, myHand, myFocus, myCommit, opLastCard, opLastResult, phase, timer, modifiers, log, mode }
@@ -1852,11 +1856,26 @@ function commitMyCard() {
   if (m.mode === 'same-device') {
     // Save current player's commit, hand off
     savePlayerView(m.activePlayer);
+    const dualPad = state.dotpadDevices.length >= 2;
     if (m.activePlayer === 1) {
-      // P1 done → handoff to P2
+      // P1 done → P2's turn
       hideCommitCard('me');
       hideThinking('op');
-      setTimeout(() => showHandoff(2), 300);
+      if (dualPad) {
+        // Two pads — auto-swap to P2 without handoff overlay
+        setTimeout(() => {
+          if (!state.match || state.match.mode !== 'same-device') return;
+          loadPlayerView(2);
+          state.match.phase = 'PLANNING';
+          SFX.commit();
+          speak(`Player 2, your turn. Choose your card.`);
+          renderMatch();
+          startPlanningTimer();
+        }, 600);
+      } else {
+        // Single pad → show handoff overlay (existing v0.11 flow)
+        setTimeout(() => showHandoff(2), 300);
+      }
     } else {
       // P2 done → both have committed, reveal+resolve from P1's perspective
       hideCommitCard('me');
@@ -2314,9 +2333,14 @@ function endMatch() {
 const DP_W = 30, DP_H = 10;
 function pushDotpad() {
   if (!state.dotpadConnected || !window.DotPad) return;
+  const m = state.match;
+  // SAME-DEVICE DUAL-PAD: render each player's perspective to their own pad
+  if (m && m.mode === 'same-device' && state.dotpadDevices.length >= 2) {
+    pushDotpadDual();
+    return;
+  }
   try {
     const cells = new Uint8Array(DP_W * DP_H);
-    // Full-pad image mode (F2 preview, game over, etc.)
     if (state.dpImageMode && Date.now() < state.dpImageMode.until) {
       const img = IMG[state.dpImageMode.key];
       if (img && IMG_OK[state.dpImageMode.key]) {
@@ -2325,22 +2349,150 @@ function pushDotpad() {
           threshold: state.dpImageMode.threshold ?? 110,
         });
       }
-    } else if (state.match) {
+    } else if (m) {
       state.dpImageMode = null;
       renderDpZones(cells);
     } else {
-      // Not in a match and no image mode — leave blank
       state.dpImageMode = null;
     }
     const hex = bytesToHex(cells);
     window.DotPad.sdk.displayGraphicData(hex);
-    // Text line: HP/turn if in match
-    if (state.match) {
-      const m = state.match;
+    if (m) {
       const text = `MY:${String(m.myHp).padStart(2,'0')} T:${String(m.turn).padStart(2,'0')} OP:${String(m.opHp).padStart(2,'0')}`;
       try { window.DotPad.sdk.displayTextData(text); } catch(e){}
     }
   } catch(e) { console.warn('[dotpad] render failed:', e); }
+}
+
+// Render each player's view independently to their own Dot Pad
+function pushDotpadDual() {
+  const m = state.match;
+  if (!m) return;
+  for (let i = 0; i < 2; i++) {
+    const device = state.dotpadDevices[i];
+    if (!device) continue;
+    const playerNum = i + 1;
+    const isActive = m.activePlayer === playerNum;
+    const cells = new Uint8Array(DP_W * DP_H);
+    renderDpZonesForPlayer(cells, m, playerNum, isActive);
+    try {
+      window.DotPad.sdk.displayGraphicData(bytesToHex(cells), device);
+      const p = playerNum === 1 ? m.p1 : m.p2;
+      const op = playerNum === 1 ? m.p2 : m.p1;
+      const text = isActive
+        ? `P${playerNum}:${String(p.hp).padStart(2,'0')} T:${String(m.turn).padStart(2,'0')} OP:${String(op.hp).padStart(2,'0')}`
+        : `WAITING... T:${String(m.turn).padStart(2,'0')}`;
+      window.DotPad.sdk.displayTextData(text, device);
+    } catch(e) { console.warn('[dotpad dual] failed for pad', i, e); }
+  }
+}
+
+// Per-player zone rendering (independent of state.myHand which only holds the
+// currently loaded view). Reads directly from m.p1 / m.p2 sub-states.
+function renderDpZonesForPlayer(cells, m, playerNum, isActive) {
+  const p = playerNum === 1 ? m.p1 : m.p2;
+  const op = playerNum === 1 ? m.p2 : m.p1;
+  // If not this player's turn AND they have not yet committed (or both have
+  // and we're past clash), show a "WAITING" frame on their pad
+  if (!isActive && !p.commit && (m.phase === 'PLANNING' || m.phase === 'WAIT')) {
+    drawWaitFrame(cells);
+    return;
+  }
+  // Top zone — opponent commit/reveal
+  if (op.commit && (m.phase === 'CLASH' || m.phase === 'OVER')) {
+    const img = IMG[`card_${op.commit}`];
+    if (img && IMG_OK[`card_${op.commit}`]) {
+      applyImageCells(cells, img, { cellsW: 14, cellsH: 3, offsetX: 8, offsetY: 0, threshold: 110 });
+    }
+  } else {
+    drawOpFrame(cells, op.commit ? CARDS[op.commit].cat : null, m.phase === 'WAIT' && !!op.commit);
+  }
+  // Bottom zone — my focused card (use actual card image if loaded)
+  if (p.hand.length) {
+    const cid = p.hand[p.focus];
+    const img = IMG[`card_${cid}`];
+    if (img && IMG_OK[`card_${cid}`]) {
+      applyImageCells(cells, img, { cellsW: 14, cellsH: 3, offsetX: 8, offsetY: 7, threshold: 110 });
+    } else {
+      drawSymbolFrame(cells, CARDS[cid].cat, 'bottom');
+    }
+  }
+  // Clash zone middle — animation during CLASH
+  if (m.phase === 'CLASH' || m.phase === 'WAIT') {
+    drawClashMiddle(cells, m.phase === 'CLASH');
+  }
+}
+function drawWaitFrame(cells) {
+  // Slow-blinking centered horizontal bar + outline
+  for (let c = 2; c < DP_W - 2; c++) {
+    setCell(cells, c, 0, 0x09);
+    setCell(cells, c, DP_H - 1, 0xC0);
+  }
+  // Center line
+  const blink = ((state._blinkPhase || 0) % 2) === 0;
+  if (blink) {
+    for (let c = 8; c <= 21; c++) {
+      setCell(cells, c, 4, 0x09);
+      setCell(cells, c, 5, 0xC0);
+    }
+  }
+}
+function drawOpFrame(cells, opCat, revealing) {
+  const cLeft = 8, cRight = 21, rTop = 0, rBot = 2;
+  for (let c = cLeft; c <= cRight; c++) {
+    setCell(cells, c, rTop, 0x09);
+    setCell(cells, c, rBot, 0xC0);
+  }
+  for (let r = rTop; r <= rBot; r++) {
+    setCell(cells, cLeft, r, 0x47);
+    setCell(cells, cRight, r, 0xB8);
+  }
+  if (revealing && opCat) {
+    const midC = Math.floor((cLeft + cRight) / 2);
+    if (opCat === 'spear') {
+      for (let r = rTop; r <= rBot; r++) setCell(cells, midC, r, 0xFF);
+    } else if (opCat === 'shield') {
+      for (let c = midC - 2; c <= midC + 2; c++) setCell(cells, c, 1, 0xFF);
+    } else if (opCat === 'special') {
+      for (let r = 0; r <= 2; r++) for (let c = midC - 1; c <= midC + 1; c++) setCell(cells, c, r, 0xFF);
+    }
+  }
+}
+function drawSymbolFrame(cells, cat, zone) {
+  const rTop = zone === 'top' ? 0 : 7, rBot = zone === 'top' ? 2 : 9;
+  const cLeft = 8, cRight = 21;
+  for (let c = cLeft; c <= cRight; c++) {
+    setCell(cells, c, rTop, 0x09);
+    setCell(cells, c, rBot, 0xC0);
+  }
+  for (let r = rTop; r <= rBot; r++) {
+    setCell(cells, cLeft, r, 0x47);
+    setCell(cells, cRight, r, 0xB8);
+  }
+  const midC = Math.floor((cLeft + cRight) / 2);
+  if (cat === 'spear') {
+    setCell(cells, midC, rTop, 0xFF);
+    setCell(cells, midC - 1, rTop+1, 0xFF); setCell(cells, midC, rTop+1, 0xFF); setCell(cells, midC + 1, rTop+1, 0xFF);
+    for (let c = midC - 2; c <= midC + 2; c++) setCell(cells, c, rBot, 0xFF);
+  } else if (cat === 'shield') {
+    for (let r = rTop; r <= rBot; r++) for (let c = midC - 2; c <= midC + 2; c++) setCell(cells, c, r, 0xFF);
+  } else {
+    for (let r = rTop; r <= rBot; r++) for (let c = midC - 2; c <= midC + 2; c++) setCell(cells, c, r, 0xFF);
+    setCell(cells, midC - 2, rTop, 0); setCell(cells, midC + 2, rTop, 0);
+    setCell(cells, midC - 2, rBot, 0); setCell(cells, midC + 2, rBot, 0);
+  }
+}
+function drawClashMiddle(cells, isClash) {
+  for (let c = 6; c <= 23; c += 3) {
+    setCell(cells, c, 4, 0x09);
+    setCell(cells, c, 5, 0xC0);
+  }
+  if (isClash) {
+    const blink = ((state._blinkPhase || 0) % 2) === 0;
+    if (blink) {
+      for (let r = 4; r <= 5; r++) for (let c = 13; c <= 16; c++) setCell(cells, c, r, 0xFF);
+    }
+  }
 }
 
 // Push an image to the FULL Dot Pad graphic area (30×10 cells = 60×40 pins).
@@ -2511,7 +2663,9 @@ async function connectUsb() {
 }
 function disconnectDot() {
   if (!dotpadAvailable()) return;
-  try { window.DotPad.sdk.disconnect(state.dotpadDevice); } catch(e){}
+  // Disconnect ALL devices
+  try { window.DotPad.sdk.disconnect(); } catch(e){}
+  state.dotpadDevices = [];
   state.dotpadConnected = false; state.dotpadDevice = null; state.dotpadName = '';
   updateDotpadStatus();
 }
@@ -2519,14 +2673,24 @@ function onDotpadMessage(device, code, msg) {
   if (!window.DotPad) return;
   const DC = window.DotPad.DataCodes;
   if (code === DC.Connected) {
+    if (!state.dotpadDevices.includes(device)) state.dotpadDevices.push(device);
     state.dotpadConnected = true;
-    state.dotpadDevice = device;
+    state.dotpadDevice = state.dotpadDevices[0]; // primary
     state.dotpadName = device.connectDevice?.name || state.dotpadName || 'Dot Pad';
     updateDotpadStatus();
-    toast('Dot Pad connected: ' + state.dotpadName);
+    const n = state.dotpadDevices.length;
+    if (n === 1) toast('Dot Pad connected: ' + state.dotpadName);
+    else if (n === 2) {
+      toast('Player 2 Dot Pad connected! Both pads ready for Same Device duel.');
+      speak('Player 2 Dot Pad connected.');
+    } else {
+      toast(`Dot Pad ${n} connected.`);
+    }
     setTimeout(pushDotpad, 300);
   } else if (code === DC.Disconnected) {
-    state.dotpadConnected = false; state.dotpadDevice = null;
+    state.dotpadDevices = state.dotpadDevices.filter(d => d !== device);
+    state.dotpadConnected = state.dotpadDevices.length > 0;
+    state.dotpadDevice = state.dotpadDevices[0] || null;
     updateDotpadStatus();
     toast('Dot Pad disconnected');
   }
@@ -2534,6 +2698,21 @@ function onDotpadMessage(device, code, msg) {
 function onDotpadKey(device, keyCode, msg) {
   if (!window.DotPad) return;
   const KC = window.DotPad.KeyCodes;
+  // SAME-DEVICE DUAL-PAD: route key to the player who owns the device
+  // Pad index 0 = P1, index 1 = P2. Only the active player's pad is accepted.
+  if (state.match?.mode === 'same-device' && state.dotpadDevices.length >= 2) {
+    const idx = state.dotpadDevices.indexOf(device);
+    const fromPlayer = idx === 0 ? 1 : idx === 1 ? 2 : null;
+    if (fromPlayer == null) return;
+    if (state.match.activePlayer !== fromPlayer) {
+      // Wrong-player input — ignore silently (player not their turn)
+      return;
+    }
+  }
+  // Handoff overlay open: F3 advances
+  if ($('overlay-handoff')?.classList.contains('open') && keyCode === KC.KeyFunction3) {
+    $('ho-ready').click(); return;
+  }
   // Splash: F3 to start
   if (state.screen === 'splash' && keyCode === KC.KeyFunction3) { $('btn-splash-start')?.click(); return; }
   // Lobby
@@ -2561,15 +2740,19 @@ function onDotpadKey(device, keyCode, msg) {
 function updateDotpadStatus() {
   const btn = $('btn-dotpad');
   if (!btn) return;
-  if (state.dotpadConnected) {
+  const n = state.dotpadDevices.length;
+  if (n > 0) {
     btn.classList.add('connected');
-    btn.textContent = '● PAD';
+    btn.textContent = n >= 2 ? `●● PAD x${n}` : '● PAD';
     $('dpd-disc').hidden = false;
   } else {
     btn.classList.remove('connected');
     btn.textContent = 'PAD';
     $('dpd-disc').hidden = true;
   }
+  // Update popup title to hint multi-pad capability
+  const title = $('dpd-title');
+  if (title) title.textContent = n >= 1 ? `Connected: ${n} pad${n>1?'s':''} · Add another?` : 'Connect Dot Pad';
 }
 function openPopup() { $('dotpad-popup').classList.add('open'); }
 function closePopup() { $('dotpad-popup').classList.remove('open'); }
@@ -2699,7 +2882,12 @@ function startLocalDuel() {
   render();
   SFX.turnBell();
   startBGM();
-  speak(`Local duel. Turn 1. Player 1, choose your card. Player 2, please look away.`);
+  const dualPad = state.dotpadDevices.length >= 2;
+  if (dualPad) {
+    speak(`Local duel with two Dot Pads. Turn 1. Player 1, use the first pad. Player 2, use the second pad. Player 1, choose your card.`);
+  } else {
+    speak(`Local duel. Turn 1. Player 1, choose your card. Player 2, please look away.`);
+  }
   startPlanningTimer();
 }
 function loadPlayerView(num) {
@@ -2764,7 +2952,10 @@ const _friend = { peer: null, conn: null, role: null, code: null };
 function genRoomCode() { return String(Math.floor(1000 + Math.random() * 9000)); }
 function openFriendOverlay() {
   $('overlay-friend').classList.add('open');
-  friendShowTab('host');
+  friendShowTab('local');
+  // Show dual-pad hint if 2 pads currently connected
+  const dualHint = $('fr-local-dualhint');
+  if (dualHint) dualHint.hidden = state.dotpadDevices.length < 2;
 }
 function closeFriendOverlay() {
   $('overlay-friend').classList.remove('open');
