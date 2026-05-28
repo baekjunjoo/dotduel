@@ -674,6 +674,53 @@
   .overlay-card p { color: var(--fg-soft); font-size: 14px; line-height: 1.5; margin: 0 0 20px; }
   .overlay-card .actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 
+  /* Tutorial */
+  .tutorial-card { text-align: left; }
+  .tut-step {
+    font-size: 10px; font-weight: 800; letter-spacing: 0.18em;
+    color: var(--accent); margin-bottom: 6px; text-transform: uppercase;
+  }
+  .tutorial-card h2 { text-align: left; }
+  .tutorial-card p { text-align: left; }
+
+  /* Friend duel */
+  .friend-card { text-align: left; max-width: 440px; }
+  .friend-card h2 { text-align: center; }
+  .friend-tabs {
+    display: flex; gap: 6px; justify-content: center;
+    margin: 0 0 16px;
+  }
+  .friend-tab { padding: 8px 18px; font-size: 12px; }
+  .friend-tab.active { background: var(--accent); color: white; border-color: var(--accent); }
+  .friend-panel { background: var(--bg-soft); padding: 14px; border-radius: 8px; border: 1px solid var(--line); }
+  .friend-status { font-size: 13px; color: var(--fg-soft); margin: 0 0 10px; text-align: left; }
+  .friend-code-display {
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-size: 48px; font-weight: 900;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-align: center;
+    background: rgba(0,0,0,0.5);
+    padding: 16px; border-radius: 8px;
+    border: 2px dashed var(--accent);
+    margin: 12px 0 16px;
+    text-shadow: 0 0 16px rgba(255,122,69,0.4);
+  }
+  #fr-join-input {
+    width: 100%;
+    padding: 14px 16px;
+    background: var(--bg);
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    color: var(--fg);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 32px; font-weight: 900;
+    letter-spacing: 0.3em;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  #fr-join-input:focus { outline: none; border-color: var(--accent); }
+
   /* Game over overlay */
   .game-over .result-art {
     width: 100%; max-width: 320px;
@@ -719,6 +766,43 @@
     position: absolute; left: -10000px; width: 1px; height: 1px;
     overflow: hidden;
   }
+
+  /* Full-screen impact flash on clash */
+  .flash-overlay {
+    position: fixed; inset: 0;
+    background: #ffffff;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 9999;
+    mix-blend-mode: screen;
+  }
+  .flash-overlay.flash-white { animation: flashWhite 0.32s ease-out; }
+  .flash-overlay.flash-red   { animation: flashRed   0.4s  ease-out; }
+  .flash-overlay.flash-gold  { animation: flashGold  0.5s  ease-out; }
+  @keyframes flashWhite {
+    0% { opacity: 0; background: #fff; }
+    18% { opacity: 0.55; }
+    100% { opacity: 0; }
+  }
+  @keyframes flashRed {
+    0% { opacity: 0; background: #ff3030; }
+    20% { opacity: 0.45; }
+    100% { opacity: 0; }
+  }
+  @keyframes flashGold {
+    0% { opacity: 0; background: #ffd84a; }
+    15% { opacity: 0.45; }
+    100% { opacity: 0; }
+  }
+  /* Optional screen shake combined with the flash */
+  @keyframes screenShake {
+    0%, 100% { transform: translate(0,0); }
+    20% { transform: translate(-4px, 2px); }
+    40% { transform: translate(4px, -2px); }
+    60% { transform: translate(-3px, 1px); }
+    80% { transform: translate(2px, -1px); }
+  }
+  main.shake { animation: screenShake 0.3s; }
 
   /* Dot Pad connect overlay (reused dpd style) */
   .dotpad-popup {
@@ -774,6 +858,8 @@
   </div>
 </header>
 
+<!-- PeerJS for friend-duel (loaded lazily on demand to avoid blocking) -->
+
 <!-- Dot Pad SDK loader -->
 <script type="module">
   try {
@@ -827,8 +913,50 @@
   </div>
 </div>
 
+<div class="overlay" id="overlay-tutorial" role="dialog" aria-labelledby="tut-title">
+  <div class="overlay-card tutorial-card">
+    <div class="tut-step" id="tut-step">Step 1 of 3</div>
+    <h2 id="tut-title">Welcome to DotDuel</h2>
+    <p id="tut-body">Tutorial body text.</p>
+    <div class="actions">
+      <button class="action-btn secondary" id="tut-skip" type="button">Skip</button>
+      <button class="action-btn" id="tut-next" type="button">Continue</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay-friend" role="dialog" aria-labelledby="fr-title">
+  <div class="overlay-card friend-card">
+    <h2 id="fr-title">Friend Duel</h2>
+    <p id="fr-desc">Share a room code or join with a friend's code. Both players need to keep this tab open.</p>
+    <div class="friend-tabs">
+      <button class="action-btn secondary friend-tab active" data-tab="host" type="button">Host</button>
+      <button class="action-btn secondary friend-tab" data-tab="join" type="button">Join</button>
+    </div>
+    <div class="friend-panel" id="fr-host-panel">
+      <p class="friend-status" id="fr-host-status">Click below to create a room.</p>
+      <div class="friend-code-display" id="fr-host-code" hidden>----</div>
+      <div class="actions">
+        <button class="action-btn" id="fr-host-create" type="button">Create Room</button>
+      </div>
+    </div>
+    <div class="friend-panel" id="fr-join-panel" hidden>
+      <p class="friend-status" id="fr-join-status">Enter the 4-digit room code your friend shared.</p>
+      <input type="text" id="fr-join-input" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="0000" autocomplete="off" />
+      <div class="actions">
+        <button class="action-btn" id="fr-join-go" type="button">Join Room</button>
+      </div>
+    </div>
+    <div class="actions" style="margin-top:14px;">
+      <button class="action-btn secondary" id="fr-close" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div class="live-region" id="live-region" aria-live="polite" aria-atomic="true"></div>
+<!-- Full-screen impact flash overlay (fires on clash) -->
+<div class="flash-overlay" id="flash-overlay" aria-hidden="true"></div>
 
 <script>
 'use strict';
@@ -989,12 +1117,117 @@ const SFX = {
   hit:     () => _tone(110, 0.4, 'sawtooth', 0.2),
   heal:    () => { _tone(659, 0.08, 'sine', 0.16); setTimeout(() => _tone(880, 0.18, 'sine', 0.16), 100); },
   turnBell:() => _tone(1500, 0.4, 'sine', 0.14),
-  win:     () => { [523,659,784,1047].forEach((f, i) => setTimeout(() => _tone(f, 0.16, 'sine', 0.22), i * 130)); },
-  lose:    () => _tone(100, 1.5, 'sawtooth', 0.18),
-  draw:    () => _tone(440, 1.5, 'sine', 0.12),
   warn:    () => { _tone(600, 0.06, 'square', 0.14); setTimeout(() => _tone(400, 0.06, 'square', 0.14), 80); },
   tick:    () => _tone(1200, 0.04, 'triangle', 0.1),
+  draw:    () => _tone(440, 1.5, 'sine', 0.12),
+  // === Victory melody — major-key heroic 7-note phrase (~2.2s) ===
+  // C5 - E5 - G5 - C6 (arpeggio rise) - E6 - G6 (peak) - C6 (settle)
+  win: () => {
+    const seq = [
+      { f: 523.25, t: 0,    dur: 0.16, type: 'sine'     },
+      { f: 659.25, t: 130,  dur: 0.16, type: 'sine'     },
+      { f: 783.99, t: 260,  dur: 0.16, type: 'sine'     },
+      { f: 1046.5, t: 390,  dur: 0.22, type: 'sine'     },
+      { f: 1318.5, t: 660,  dur: 0.18, type: 'triangle' },
+      { f: 1568.0, t: 870,  dur: 0.30, type: 'triangle' },
+      { f: 1046.5, t: 1280, dur: 0.65, type: 'sine'     },
+    ];
+    seq.forEach(s => setTimeout(() => _tone(s.f, s.dur, s.type, 0.22), s.t));
+    // Sub bass for grandeur
+    setTimeout(() => _tone(130.81, 1.8, 'sine', 0.14), 0);
+  },
+  // === Defeat melody — minor-key descending mournful phrase (~2.4s) ===
+  // F4 - Eb4 - Db4 - C4 (descending half-steps) - low Ab3 sustain
+  lose: () => {
+    const seq = [
+      { f: 349.23, t: 0,    dur: 0.28, type: 'triangle' },
+      { f: 311.13, t: 320,  dur: 0.28, type: 'triangle' },
+      { f: 277.18, t: 640,  dur: 0.28, type: 'triangle' },
+      { f: 261.63, t: 960,  dur: 0.45, type: 'triangle' },
+      { f: 207.65, t: 1500, dur: 0.95, type: 'sine'     },
+    ];
+    seq.forEach(s => setTimeout(() => _tone(s.f, s.dur, s.type, 0.18), s.t));
+    setTimeout(() => _tone(103.83, 2.2, 'sine', 0.12), 0);
+  },
 };
+
+// ============================================================
+// BGM — Ambient drone played quietly during matches
+// ============================================================
+const _bgm = { osc1: null, osc2: null, lfo: null, gain: null, running: false };
+function startBGM() {
+  if (_bgm.running) return;
+  if (!state.sfxOn) return;
+  const ctx = _audio(); if (!ctx) return;
+  try {
+    _bgm.gain = ctx.createGain();
+    _bgm.gain.gain.setValueAtTime(0, ctx.currentTime);
+    _bgm.gain.gain.linearRampToValueAtTime(0.055, ctx.currentTime + 1.2);
+    _bgm.gain.connect(ctx.destination);
+    // Sub drone — root tone
+    _bgm.osc1 = ctx.createOscillator();
+    _bgm.osc1.type = 'sine';
+    _bgm.osc1.frequency.value = 65.41; // C2
+    _bgm.osc1.connect(_bgm.gain);
+    _bgm.osc1.start();
+    // Pad — fifth above with slow detune wobble
+    _bgm.osc2 = ctx.createOscillator();
+    _bgm.osc2.type = 'triangle';
+    _bgm.osc2.frequency.value = 98.0; // G2
+    _bgm.osc2.connect(_bgm.gain);
+    _bgm.osc2.start();
+    // LFO modulates osc2 freq for slow chord movement
+    _bgm.lfo = ctx.createOscillator();
+    _bgm.lfo.type = 'sine';
+    _bgm.lfo.frequency.value = 0.08;
+    const lfoGain = ctx.createGain();
+    lfoGain.gain.value = 4;
+    _bgm.lfo.connect(lfoGain);
+    lfoGain.connect(_bgm.osc2.frequency);
+    _bgm.lfo.start();
+    _bgm.running = true;
+  } catch(e) { console.warn('[bgm] start failed:', e); }
+}
+function stopBGM() {
+  if (!_bgm.running) return;
+  const ctx = _bgm.gain && _bgm.gain.context;
+  if (ctx) {
+    // Fade out then stop
+    try {
+      _bgm.gain.gain.cancelScheduledValues(ctx.currentTime);
+      _bgm.gain.gain.setValueAtTime(_bgm.gain.gain.value, ctx.currentTime);
+      _bgm.gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
+    } catch(e){}
+    setTimeout(() => {
+      try { _bgm.osc1 && _bgm.osc1.stop(); } catch(e){}
+      try { _bgm.osc2 && _bgm.osc2.stop(); } catch(e){}
+      try { _bgm.lfo && _bgm.lfo.stop(); } catch(e){}
+    }, 500);
+  }
+  _bgm.running = false;
+}
+
+// ============================================================
+// Impact flash — full-screen color + optional screen shake
+// ============================================================
+function flashScreen(color = 'white', shake = false) {
+  const fo = document.getElementById('flash-overlay');
+  if (fo) {
+    fo.className = 'flash-overlay';
+    void fo.offsetWidth; // restart animation
+    fo.classList.add('flash-' + color);
+    setTimeout(() => fo.classList.remove('flash-' + color), 600);
+  }
+  if (shake) {
+    const m = document.querySelector('main');
+    if (m) {
+      m.classList.remove('shake');
+      void m.offsetWidth;
+      m.classList.add('shake');
+      setTimeout(() => m.classList.remove('shake'), 320);
+    }
+  }
+}
 
 // ============================================================
 // IMAGE PRELOAD + DOT PAD CONVERSION
@@ -1250,17 +1483,17 @@ function renderLobby() {
           <p class="mode-desc">Find a real opponent online (10s queue, bot fallback).</p>
           <span class="mode-tag soon">SOON</span>
         </button>
-        <button class="mode-card disabled" role="listitem" data-mode="friend" type="button" aria-disabled="true">
+        <button class="mode-card" role="listitem" data-mode="friend" type="button">
           <div class="mode-icon">🤝</div>
           <div class="mode-name">Friend Duel</div>
           <p class="mode-desc">Share a 4-digit room code with a friend.</p>
-          <span class="mode-tag soon">SOON</span>
+          <span class="mode-tag">v1.0</span>
         </button>
-        <button class="mode-card disabled" role="listitem" data-mode="tutorial" type="button" aria-disabled="true">
+        <button class="mode-card" role="listitem" data-mode="tutorial" type="button">
           <div class="mode-icon">📖</div>
           <div class="mode-name">Tutorial</div>
           <p class="mode-desc">3-step learn the duel basics.</p>
-          <span class="mode-tag soon">SOON</span>
+          <span class="mode-tag">v1.0</span>
         </button>
       </div>
       <div class="difficulty-row" id="diff-row">
@@ -1287,6 +1520,14 @@ function renderLobby() {
         $('diff-row').classList.add('show');
         SFX.focus();
         speak('Bot duel. Choose difficulty.');
+      } else if (m === 'tutorial') {
+        SFX.commit();
+        startTutorial();
+      } else if (m === 'friend') {
+        SFX.commit();
+        openFriendOverlay();
+      } else if (m === 'quick') {
+        toast('Quick Duel coming in v1.1 — try Bot or Friend for now.');
       }
     });
   });
@@ -1313,6 +1554,7 @@ function startMatch(opts) {
   const myHand = myDeck.splice(0, HAND_START);
   state.match = {
     mode: opts.mode || 'bot',
+    friendRole: opts.friendRole || null,
     turn: 1,
     myHp: STARTING_HP,
     opHp: STARTING_HP,
@@ -1322,6 +1564,7 @@ function startMatch(opts) {
     opDiscard: [],
     myFocus: 0,
     myCommit: null,
+    opCommit: null,
     opLastCard: null,         // category-only hint
     opLastFullCard: null,     // set after reveal
     obscureUntil: 0,          // turn until which opponent's category is obscured (feint)
@@ -1332,11 +1575,12 @@ function startMatch(opts) {
     log: [],
     botThinkUntil: 0,
   };
-  // Opponent draws
+  // Opponent draws (bot only — friend has their own deck)
   state.match.opHand = state.match.opDeck.splice(0, HAND_START);
   state.screen = 'match';
   render();
   SFX.turnBell();
+  startBGM();
   speak(`Turn 1. Your HP 10, opponent 10. Choose your card. F1 for briefing.`);
   startPlanningTimer();
 }
@@ -1393,7 +1637,7 @@ function renderMatch() {
         </div>
         <div class="stats-side right">
           <div style="text-align:right;">
-            <div class="player-label">BOT</div>
+            <div class="player-label">${m.mode === 'friend' ? 'FRIEND' : 'BOT'}</div>
             <div class="hp-hearts" id="op-hearts" aria-label="Opponent HP ${m.opHp}">${opHearts}</div>
           </div>
         </div>
@@ -1414,7 +1658,7 @@ function renderMatch() {
             </div>
             <div class="arena-vs">VS</div>
             <div class="duelist" id="duelist-op" aria-label="Opponent — bear shieldwarden">${IMG_OK.bear ? `<img src="${IMG.bear.src}" alt="" />` : '🐻'}
-              <span class="duelist-name">BOT</span>
+              <span class="duelist-name">${m.mode === 'friend' ? 'FRIEND' : 'BOT'}</span>
             </div>
           </div>
         </div>
@@ -1548,6 +1792,29 @@ function commitMyCard() {
   // Show opponent thinking indicator
   showThinking('op');
   speak(`${c.name} committed. Opponent is choosing.`);
+
+  if (m.mode === 'friend') {
+    // PvP: send our commit; opponent's commit arrives via friendOnData and
+    // triggers the reveal+resolve from there
+    friendSend({ type: 'commit', cardId: m.myCommit, turn: m.turn });
+    // If opponent already sent first, finish the resolve now
+    if (m.opCommit) {
+      setTimeout(() => {
+        if (!state.match || state.match.phase !== 'WAIT') return;
+        const opCard = CARDS[m.opCommit];
+        hideThinking('op');
+        showCommitCard('op', m.opCommit);
+        $('clash-text').textContent = 'Cards revealed!';
+        $('clash-detail').textContent = `You ${c.name}  vs  Friend ${opCard.name}`;
+        SFX.special();
+        speak(`Friend plays ${opCard.name}.`);
+        setTimeout(() => {
+          if (state.match && state.match.phase === 'WAIT') resolveClash();
+        }, 900);
+      }, 200);
+    }
+    return;
+  }
 
   // Bot picks card after a brief think (simulates real player)
   const thinkMs = 900 + Math.random() * 1400;
@@ -1752,6 +2019,15 @@ function resolveClash() {
   // Visual + sound feedback
   $('clash-text').textContent = '⚔ CLASH';
   $('clash-detail').textContent = `${myCard.name}  vs  ${opCard.name}`;
+  // Impact flash — colored by outcome (anyone hurt = red, full block = gold, otherwise neutral white)
+  const anyDamage = myDmg > 0 || opDmg > 0;
+  const isFullBlock = (myCard.cat === 'spear' && opCard.cat === 'shield' && opDmg === 0)
+                  || (opCard.cat === 'spear' && myCard.cat === 'shield' && myDmg === 0);
+  setTimeout(() => {
+    if (anyDamage) flashScreen('red', true);
+    else if (isFullBlock) flashScreen('gold', false);
+    else flashScreen('white', false);
+  }, 300);
   // SFX by category
   if (myCard.cat === 'spear' || opCard.cat === 'spear') SFX.spear();
   if (myCard.cat === 'shield' || opCard.cat === 'shield') setTimeout(SFX.shield, 150);
@@ -1895,6 +2171,7 @@ function nextTurn() {
 
 function endMatch() {
   clearPlanningTimer();
+  stopBGM();
   const m = state.match;
   m.phase = 'OVER';
   const winner = m.myHp > m.opHp ? 'win' : m.myHp < m.opHp ? 'lose' : 'draw';
@@ -2220,6 +2497,206 @@ renderMatch = function() {
 };
 
 // ============================================================
+// TUTORIAL — 3-step interactive intro
+// ============================================================
+const TUTORIAL_STEPS = [
+  {
+    title: 'Welcome to DotDuel',
+    body: 'A 1-on-1 card duel. You and the bot each play one card per turn. Highest HP at turn 15 wins, or knock the opponent to zero. The whole game runs on voice and Dot Pad — no screen required.',
+  },
+  {
+    title: 'The 3 card types',
+    body: 'Spear ▲ attacks. Shield ■ blocks. Special ● has unique effects (heal, deceive, double-strike). When both reveal cards, they clash: spear vs shield = block; spear vs spear = both hit; etc.',
+  },
+  {
+    title: 'Controls',
+    body: 'Arrow keys (or Dot Pad pan keys) move card focus. F2 reads the card aloud. F3 commits. F1 gives a turn briefing. Press F3 below when you are ready to start a quick bot duel.',
+  },
+];
+function startTutorial() {
+  state.tutorialStep = 0;
+  showTutorialStep();
+}
+function showTutorialStep() {
+  const i = state.tutorialStep || 0;
+  const s = TUTORIAL_STEPS[i];
+  if (!s) { closeTutorial(); return; }
+  $('tut-step').textContent = `Step ${i + 1} of ${TUTORIAL_STEPS.length}`;
+  $('tut-title').textContent = s.title;
+  $('tut-body').textContent = s.body;
+  $('tut-next').textContent = i === TUTORIAL_STEPS.length - 1 ? 'Start Practice Duel' : 'Continue';
+  $('overlay-tutorial').classList.add('open');
+  speak(s.title + '. ' + s.body);
+}
+function nextTutorialStep() {
+  state.tutorialStep = (state.tutorialStep || 0) + 1;
+  if (state.tutorialStep >= TUTORIAL_STEPS.length) {
+    closeTutorial();
+    // Start an easy bot duel as the practice
+    state.difficulty = 'easy';
+    startMatch({ mode: 'bot' });
+  } else {
+    showTutorialStep();
+  }
+}
+function closeTutorial() {
+  $('overlay-tutorial').classList.remove('open');
+  stopSpeak();
+}
+
+// ============================================================
+// FRIEND DUEL — PeerJS peer-to-peer (no signup, free broker)
+// ============================================================
+const PEERJS_CDN = 'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js';
+let _peerjsLoaded = false;
+function loadPeerJS() {
+  if (_peerjsLoaded || window.Peer) { _peerjsLoaded = true; return Promise.resolve(); }
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = PEERJS_CDN;
+    s.onload = () => { _peerjsLoaded = true; resolve(); };
+    s.onerror = () => reject(new Error('Failed to load PeerJS'));
+    document.head.appendChild(s);
+  });
+}
+const _friend = { peer: null, conn: null, role: null, code: null };
+function genRoomCode() { return String(Math.floor(1000 + Math.random() * 9000)); }
+function openFriendOverlay() {
+  $('overlay-friend').classList.add('open');
+  friendShowTab('host');
+}
+function closeFriendOverlay() {
+  $('overlay-friend').classList.remove('open');
+  friendCleanup();
+}
+function friendShowTab(tab) {
+  document.querySelectorAll('.friend-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  $('fr-host-panel').hidden = (tab !== 'host');
+  $('fr-join-panel').hidden = (tab !== 'join');
+}
+async function friendHostCreate() {
+  $('fr-host-status').textContent = 'Loading network...';
+  try {
+    await loadPeerJS();
+    const code = genRoomCode();
+    _friend.code = code;
+    _friend.role = 'host';
+    _friend.peer = new Peer('dotduel-' + code, { debug: 1 });
+    _friend.peer.on('open', () => {
+      $('fr-host-status').textContent = 'Room ready. Share this code with your friend:';
+      $('fr-host-code').hidden = false;
+      $('fr-host-code').textContent = code;
+      $('fr-host-create').textContent = 'Waiting for friend...';
+      $('fr-host-create').disabled = true;
+      speak(`Room created. Code ${code.split('').join(' ')}.`);
+    });
+    _friend.peer.on('connection', (conn) => {
+      _friend.conn = conn;
+      conn.on('open', () => {
+        SFX.commit();
+        speak('Friend connected. Starting duel.');
+        closeFriendOverlay();
+        startMatch({ mode: 'friend', friendRole: 'host' });
+      });
+      conn.on('data', friendOnData);
+      conn.on('close', friendOnDisconnect);
+    });
+    _friend.peer.on('error', (err) => {
+      console.warn('[peer host] error', err);
+      $('fr-host-status').textContent = 'Error: ' + (err.type || err.message || 'unknown');
+      $('fr-host-create').disabled = false;
+      $('fr-host-create').textContent = 'Create Room';
+    });
+  } catch (e) {
+    $('fr-host-status').textContent = 'Failed to load network library. Check connection.';
+    console.error(e);
+  }
+}
+async function friendJoinGo() {
+  const code = ($('fr-join-input').value || '').trim();
+  if (!/^\d{4}$/.test(code)) {
+    $('fr-join-status').textContent = 'Enter a 4-digit code.';
+    return;
+  }
+  $('fr-join-status').textContent = 'Connecting to room ' + code + '...';
+  try {
+    await loadPeerJS();
+    _friend.code = code;
+    _friend.role = 'guest';
+    _friend.peer = new Peer({ debug: 1 });
+    _friend.peer.on('open', () => {
+      const conn = _friend.peer.connect('dotduel-' + code, { reliable: true });
+      _friend.conn = conn;
+      conn.on('open', () => {
+        SFX.commit();
+        speak('Connected. Starting duel.');
+        closeFriendOverlay();
+        startMatch({ mode: 'friend', friendRole: 'guest' });
+      });
+      conn.on('data', friendOnData);
+      conn.on('close', friendOnDisconnect);
+      conn.on('error', (e) => {
+        $('fr-join-status').textContent = 'Could not join. Check the code and that the host is still waiting.';
+        console.warn('[peer guest conn] error', e);
+      });
+    });
+    _friend.peer.on('error', (err) => {
+      $('fr-join-status').textContent = 'Error: ' + (err.type || err.message || 'unknown');
+      console.warn('[peer guest] error', err);
+    });
+  } catch (e) {
+    $('fr-join-status').textContent = 'Failed to load network library.';
+    console.error(e);
+  }
+}
+function friendSend(data) {
+  if (_friend.conn && _friend.conn.open) {
+    try { _friend.conn.send(data); } catch(e){ console.warn('[friend send] error', e); }
+  }
+}
+function friendOnData(data) {
+  if (!data || typeof data !== 'object' || !state.match) return;
+  if (data.type === 'commit') {
+    // Opponent committed their card — store it and trigger our reveal+resolve
+    state.match.opCommit = data.cardId;
+    // If we already committed, resolve now
+    if (state.match.myCommit && state.match.phase === 'WAIT') {
+      hideThinking('op');
+      const opCard = CARDS[state.match.opCommit];
+      showCommitCard('op', state.match.opCommit);
+      $('clash-text').textContent = 'Cards revealed!';
+      $('clash-detail').textContent = `You ${CARDS[state.match.myCommit].name}  vs  Friend ${opCard.name}`;
+      SFX.special();
+      speak(`Friend plays ${opCard.name}.`);
+      setTimeout(() => {
+        if (state.match && state.match.phase === 'WAIT') resolveClash();
+      }, 900);
+    }
+  } else if (data.type === 'hello') {
+    // Initial handshake — sync deck seed could go here later
+  }
+}
+function friendOnDisconnect() {
+  if (state.match && state.match.mode === 'friend' && state.match.phase !== 'OVER') {
+    toast('Friend disconnected. The match has ended.');
+    speak('Friend disconnected.');
+    endMatch();
+  }
+}
+function friendCleanup() {
+  try { if (_friend.conn) _friend.conn.close(); } catch(e){}
+  try { if (_friend.peer) _friend.peer.destroy(); } catch(e){}
+  _friend.peer = null; _friend.conn = null; _friend.role = null; _friend.code = null;
+  $('fr-host-code').hidden = true;
+  $('fr-host-code').textContent = '----';
+  $('fr-host-create').disabled = false;
+  $('fr-host-create').textContent = 'Create Room';
+  $('fr-host-status').textContent = 'Click below to create a room.';
+  $('fr-join-status').textContent = 'Enter the 4-digit room code your friend shared.';
+  $('fr-join-input').value = '';
+}
+
+// ============================================================
 // INIT
 // ============================================================
 async function init() {
@@ -2254,6 +2731,9 @@ async function init() {
     $('btn-sfx').classList.toggle('active', state.sfxOn);
     $('btn-sfx').setAttribute('aria-pressed', String(state.sfxOn));
     saveSettings();
+    // Honor toggle for BGM too
+    if (!state.sfxOn) stopBGM();
+    else if (state.match && state.match.phase !== 'OVER') startBGM();
   });
   $('btn-home').addEventListener('click', () => {
     clearPlanningTimer();
@@ -2263,22 +2743,48 @@ async function init() {
       $('overlay-confirm').classList.add('open');
       $('confirm-yes').onclick = () => {
         $('overlay-confirm').classList.remove('open');
+        stopBGM();
         state.match = null;
         state.screen = 'lobby';
         render();
       };
       $('confirm-no').onclick = () => $('overlay-confirm').classList.remove('open');
     } else {
+      stopBGM();
       state.screen = 'lobby';
       render();
     }
   });
   $('result-rematch').addEventListener('click', () => {
     $('overlay-game-over').classList.remove('open');
-    startMatch({ mode: state.match?.mode || 'bot' });
+    // Friend rematch needs re-handshake; just go back to bot mode for now
+    const prevMode = state.match?.mode || 'bot';
+    if (prevMode === 'friend') {
+      friendCleanup();
+      state.match = null;
+      state.screen = 'lobby';
+      render();
+      toast('Friend rematch — re-create or rejoin a room.');
+    } else {
+      startMatch({ mode: prevMode });
+    }
   });
+  // Tutorial overlay
+  $('tut-next').addEventListener('click', nextTutorialStep);
+  $('tut-skip').addEventListener('click', closeTutorial);
+  // Friend duel overlay
+  document.querySelectorAll('.friend-tab').forEach(btn => {
+    btn.addEventListener('click', () => friendShowTab(btn.dataset.tab));
+  });
+  $('fr-host-create').addEventListener('click', friendHostCreate);
+  $('fr-join-go').addEventListener('click', friendJoinGo);
+  $('fr-join-input').addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+  });
+  $('fr-close').addEventListener('click', closeFriendOverlay);
   $('result-lobby').addEventListener('click', () => {
     $('overlay-game-over').classList.remove('open');
+    stopBGM();
     state.match = null;
     state.screen = 'lobby';
     render();
