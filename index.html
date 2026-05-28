@@ -480,6 +480,101 @@
     60% { transform: translateX(4px); filter: none; }
     100% { transform: translateX(0); }
   }
+
+  /* Committed card floating reveal — sits above the duelist showing what
+     they played, so the duel feels like a real back-and-forth */
+  .commit-card {
+    position: absolute;
+    width: 68px; height: 68px;
+    top: -94px; left: 50%;
+    transform: translateX(-50%) scale(0.4);
+    opacity: 0;
+    background: var(--bg-card);
+    border: 2px solid var(--accent);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.6), 0 0 16px rgba(255,122,69,0.4);
+    transition: transform 0.35s cubic-bezier(.2,1.3,.4,1), opacity 0.3s;
+    pointer-events: none;
+    z-index: 7;
+  }
+  .commit-card.show {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
+  .commit-card img {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+  .commit-card .commit-card-name {
+    position: absolute;
+    bottom: -22px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px; font-weight: 900;
+    color: var(--fg);
+    background: rgba(10,8,6,0.9);
+    border: 1px solid var(--accent);
+    padding: 2px 8px;
+    border-radius: 3px;
+    white-space: nowrap;
+    letter-spacing: 0.06em;
+  }
+  .commit-card.hidden { opacity: 0; transform: translateX(-50%) scale(0.4); }
+
+  /* Floating damage popup — "-2" or "BLOCKED" floats off the hit character */
+  .dmg-popup {
+    position: absolute;
+    top: 30%; left: 50%;
+    transform: translate(-50%, 0);
+    font-size: 32px; font-weight: 900;
+    color: var(--danger);
+    text-shadow: 0 0 12px rgba(192,57,43,0.8), 0 2px 0 #000, 0 0 4px #000;
+    -webkit-text-stroke: 1.5px #000;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 8;
+    animation: dmgFloat 1.4s ease-out forwards;
+  }
+  .dmg-popup.heal { color: var(--ok); text-shadow: 0 0 12px rgba(109,217,154,0.8), 0 2px 0 #000; }
+  .dmg-popup.block { color: var(--gold); text-shadow: 0 0 12px rgba(212,160,23,0.8), 0 2px 0 #000; font-size: 22px; }
+  @keyframes dmgFloat {
+    0%   { opacity: 0; transform: translate(-50%, 20px) scale(0.6); }
+    20%  { opacity: 1; transform: translate(-50%, 0) scale(1.2); }
+    40%  { transform: translate(-50%, -10px) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -50px) scale(0.95); }
+  }
+
+  /* Thinking indicator on the opponent while bot is choosing */
+  .thinking-dots {
+    position: absolute;
+    top: -52px; left: 50%;
+    transform: translateX(-50%);
+    background: rgba(10,8,6,0.9);
+    border: 1px solid var(--gold);
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 10px; font-weight: 800;
+    color: var(--gold);
+    letter-spacing: 0.1em;
+    z-index: 7;
+    white-space: nowrap;
+  }
+  .thinking-dots::after {
+    content: '...';
+    display: inline-block;
+    animation: thinkDots 1.2s infinite;
+    width: 14px;
+    text-align: left;
+    margin-left: 2px;
+  }
+  @keyframes thinkDots {
+    0%, 20%   { content: ''; }
+    40%       { content: '.'; }
+    60%       { content: '..'; }
+    80%, 100% { content: '...'; }
+  }
   .arena-vs {
     font-size: clamp(32px, 4.5vw, 52px);
     font-weight: 900;
@@ -1448,14 +1543,83 @@ function commitMyCard() {
   const c = CARDS[m.myCommit];
   $('clash-text').textContent = 'Committed';
   $('clash-detail').textContent = `${c.name}`;
-  speak(`${c.name} committed. Opponent thinking.`);
-  // Bot opponent picks card after a brief think (simulates real player)
-  const thinkMs = 800 + Math.random() * 1200;
+  // Show my card floating above my duelist
+  showCommitCard('me', m.myCommit);
+  // Show opponent thinking indicator
+  showThinking('op');
+  speak(`${c.name} committed. Opponent is choosing.`);
+
+  // Bot picks card after a brief think (simulates real player)
+  const thinkMs = 900 + Math.random() * 1400;
   setTimeout(() => {
     if (!state.match || state.match.phase !== 'WAIT') return;
     botCommit();
-    resolveClash();
+    hideThinking('op');
+    // REVEAL opponent's card with announcement before resolving
+    const opCard = CARDS[m.opCommit];
+    showCommitCard('op', m.opCommit);
+    $('clash-text').textContent = 'Cards revealed!';
+    $('clash-detail').textContent = `You ${c.name}  vs  Bot ${opCard.name}`;
+    // SFX cue for opponent commit (distinct from player commit)
+    SFX.special();
+    speak(`Bot plays ${opCard.name}.`);
+    // Brief pause so user can register the reveal, then resolve
+    setTimeout(() => {
+      if (!state.match || state.match.phase !== 'WAIT') return;
+      resolveClash();
+    }, 900);
   }, thinkMs);
+}
+
+// Show a card thumbnail floating above the specified duelist
+function showCommitCard(who, cid) {
+  const duelistEl = document.getElementById(who === 'me' ? 'duelist-me' : 'duelist-op');
+  if (!duelistEl) return;
+  // Remove any existing
+  duelistEl.querySelectorAll('.commit-card').forEach(el => el.remove());
+  const card = CARDS[cid];
+  const wrap = document.createElement('div');
+  wrap.className = 'commit-card';
+  const imgHtml = IMG_OK[`card_${cid}`]
+    ? `<img src="${IMG[`card_${cid}`].src}" alt="" />`
+    : `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:32px;color:var(--${card.cat === 'spear' ? 'steel' : card.cat === 'shield' ? 'gold' : 'purple'});">${card.cat==='spear'?'▲':card.cat==='shield'?'■':'●'}</div>`;
+  wrap.innerHTML = `${imgHtml}<span class="commit-card-name">${card.name}</span>`;
+  duelistEl.appendChild(wrap);
+  // Trigger animation
+  requestAnimationFrame(() => wrap.classList.add('show'));
+  return wrap;
+}
+function hideCommitCard(who) {
+  const duelistEl = document.getElementById(who === 'me' ? 'duelist-me' : 'duelist-op');
+  if (!duelistEl) return;
+  duelistEl.querySelectorAll('.commit-card').forEach(el => {
+    el.classList.remove('show');
+    setTimeout(() => el.remove(), 400);
+  });
+}
+function showThinking(who) {
+  const duelistEl = document.getElementById(who === 'me' ? 'duelist-me' : 'duelist-op');
+  if (!duelistEl) return;
+  hideThinking(who);
+  const d = document.createElement('div');
+  d.className = 'thinking-dots';
+  d.textContent = 'THINKING';
+  duelistEl.appendChild(d);
+}
+function hideThinking(who) {
+  const duelistEl = document.getElementById(who === 'me' ? 'duelist-me' : 'duelist-op');
+  if (!duelistEl) return;
+  duelistEl.querySelectorAll('.thinking-dots').forEach(el => el.remove());
+}
+// Spawn a floating damage / heal / block popup on the specified duelist
+function spawnDmgPopup(who, text, kind) {
+  const duelistEl = document.getElementById(who === 'me' ? 'duelist-me' : 'duelist-op');
+  if (!duelistEl) return;
+  const p = document.createElement('div');
+  p.className = 'dmg-popup' + (kind ? ' ' + kind : '');
+  p.textContent = text;
+  duelistEl.appendChild(p);
+  setTimeout(() => p.remove(), 1500);
 }
 
 // ============================================================
@@ -1592,15 +1756,38 @@ function resolveClash() {
   if (myCard.cat === 'spear' || opCard.cat === 'spear') SFX.spear();
   if (myCard.cat === 'shield' || opCard.cat === 'shield') setTimeout(SFX.shield, 150);
   if (myCard.cat === 'special' || opCard.cat === 'special') setTimeout(SFX.special, 100);
+  // Damage popups + hit shake
   if (myDmg > 0) {
-    setTimeout(() => $('duelist-me').classList.add('hit'), 350);
+    setTimeout(() => {
+      $('duelist-me').classList.add('hit');
+      spawnDmgPopup('me', `-${myDmg}`, 'damage');
+    }, 350);
     setTimeout(SFX.hit, 400);
   }
   if (opDmg > 0) {
-    setTimeout(() => $('duelist-op').classList.add('hit'), 350);
+    setTimeout(() => {
+      $('duelist-op').classList.add('hit');
+      spawnDmgPopup('op', `-${opDmg}`, 'damage');
+    }, 350);
     setTimeout(SFX.hit, 450);
   }
-  if (myDmg < 0) setTimeout(SFX.heal, 200);
+  if (myDmg < 0) {
+    setTimeout(() => spawnDmgPopup('me', `+${-myDmg}`, 'heal'), 350);
+    setTimeout(SFX.heal, 200);
+  }
+  if (opDmg < 0) {
+    setTimeout(() => spawnDmgPopup('op', `+${-opDmg}`, 'heal'), 350);
+    setTimeout(SFX.heal, 250);
+  }
+  // BLOCKED popup if a spear hit a shield with full blockage (no damage)
+  const fullBlock = (myCard.cat === 'spear' && opCard.cat === 'shield' && opDmg === 0)
+                 || (opCard.cat === 'spear' && myCard.cat === 'shield' && myDmg === 0);
+  if (fullBlock) {
+    setTimeout(() => {
+      if (myCard.cat === 'shield') spawnDmgPopup('me', 'BLOCKED!', 'block');
+      else spawnDmgPopup('op', 'BLOCKED!', 'block');
+    }, 380);
+  }
 
   // Persist tower shield trigger
   if (myCard.eff === 'persist') m.persistShield = 1;
@@ -1615,27 +1802,57 @@ function resolveClash() {
     summary: `${myDmg>0?'-'+myDmg+' you ':''}${opDmg>0?'-'+opDmg+' op ':''}${myDmg===0&&opDmg===0?'no damage':''}`,
   });
 
-  // Announce
+  // Announce — verbose, duel-style narration
   setTimeout(() => {
-    let sayParts = [`${myCard.name} versus ${opCard.name}.`];
-    if (myDmg > 0) sayParts.push(`You take ${myDmg}.`);
-    if (opDmg > 0) sayParts.push(`Opponent takes ${opDmg}.`);
-    if (myDmg < 0) sayParts.push(`You heal ${-myDmg}.`);
-    if (myDmg === 0 && opDmg === 0) sayParts.push(`No damage.`);
-    sayParts.push(`Your HP ${m.myHp}, opponent ${m.opHp}.`);
+    let sayParts = [];
+    // Lead with the action verb based on category
+    if (myCard.cat === 'spear' && opCard.cat === 'spear') {
+      sayParts.push(`Both strike! You with ${myCard.name}, bot with ${opCard.name}.`);
+    } else if (myCard.cat === 'spear' && opCard.cat === 'shield') {
+      if (opDmg > 0) sayParts.push(`Your ${myCard.name} pierces the bot's ${opCard.name} for ${opDmg}!`);
+      else sayParts.push(`Bot blocks your ${myCard.name} with ${opCard.name}!`);
+    } else if (myCard.cat === 'shield' && opCard.cat === 'spear') {
+      if (myDmg > 0) sayParts.push(`Bot's ${opCard.name} breaks through your ${myCard.name} for ${myDmg}!`);
+      else sayParts.push(`You block with ${myCard.name}!`);
+    } else if (myCard.cat === 'shield' && opCard.cat === 'shield') {
+      sayParts.push(`Both raise shields. No damage.`);
+    } else {
+      sayParts.push(`You play ${myCard.name}, bot plays ${opCard.name}.`);
+      if (myDmg > 0) sayParts.push(`You take ${myDmg}.`);
+      if (opDmg > 0) sayParts.push(`Bot takes ${opDmg}.`);
+      if (myDmg < 0) sayParts.push(`You heal ${-myDmg}.`);
+      if (opDmg < 0) sayParts.push(`Bot heals ${-opDmg}.`);
+    }
+    sayParts.push(`Your HP ${m.myHp}, bot ${m.opHp}.`);
     speak(sayParts.join(' '));
-  }, 300);
+  }, 400);
 
-  // After clash animation, advance turn or end game
+  // After clash animation, hide commit cards then advance turn or end game
+  setTimeout(() => {
+    hideCommitCard('me');
+    hideCommitCard('op');
+  }, 1500);
   setTimeout(() => {
     if (m.myHp <= 0 || m.opHp <= 0 || m.turn >= MAX_TURNS) {
       endMatch();
     } else {
       nextTurn();
     }
-  }, 1900);
+  }, 2200);
 
-  renderMatch();
+  // Update only the HP/turn/log display in-place — full renderMatch would
+  // wipe the commit-card DOM nodes we just appended via JS.
+  updateClashStats();
+  setTimeout(pushDotpad, 60);
+}
+
+function updateClashStats() {
+  const m = state.match;
+  if (!m) return;
+  const myH = $('my-hearts'); if (myH) myH.innerHTML = renderHearts(m.myHp, STARTING_HP);
+  const opH = $('op-hearts'); if (opH) opH.innerHTML = renderHearts(m.opHp, STARTING_HP);
+  const ph = $('phase-name'); if (ph) ph.textContent = phaseName(m.phase);
+  const td = $('timer-display'); if (td) td.textContent = m.phase === 'PLANNING' ? m.timer + 's' : '—';
 }
 
 function nextTurn() {
